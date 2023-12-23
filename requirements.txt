@@ -10,4 +10,4 @@ Pillow
 scipy
 tqdm
 psutil
-pydantic
+marshmallow

@@ -1,13 +1,14 @@
 import base64
 import io
 import os
+from typing import List
 from PIL import Image, ImageOps
 import numpy as np
 import torch
 import folder_paths
 
 
-def load_base64_image(base64_str):
+def base64_to_image(base64_str):
     img_bytes = base64.b64decode(base64_str)
     i = Image.open(io.BytesIO(img_bytes))
     i = ImageOps.exif_transpose(i)
@@ -23,15 +24,17 @@ def load_base64_image(base64_str):
 
 
 @torch.no_grad()
-def save_base64_image(images: torch.Tensor):
+def images_to_base64(images: torch.Tensor) -> List[str]:
+    # Save Images to list
+    results: List[str] = []
     for image in images:
         i = 255.0 * image.cpu().numpy()
         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         img_str = base64.b64encode(buffered.getvalue())
-        prefix = "data:image/jpeg;base64,"
-        return img_str.decode("utf-8")
+        results.append(img_str.decode("utf-8"))
+    return results
 
 
 @torch.no_grad()

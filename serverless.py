@@ -1,12 +1,11 @@
 import time
-from typing import Optional
 from aiohttp import web
-from pydantic import BaseModel, ValidationError
+from marshmallow import Schema, fields, ValidationError
+
 from nodes import (
     NODE_CLASS_MAPPINGS,
     CLIPTextEncode,
     EmptyLatentImage,
-    VAEEncode,
     CheckpointLoaderSimple,
     init_custom_nodes,
 )
@@ -18,21 +17,21 @@ routes = web.RouteTableDef()
 
 
 @routes.get("/")
-async def status(request):
+async def status(_):
     return web.json_response(stats.get_stats())
 
 
-class GenerateData(BaseModel):
-    seed: int
-    steps: int
-    cfg_scale: float
-    width: int
-    height: int
-    restore_faces: bool
-    negative_prompt: str
-    prompt: str
-    sampler: str
-    img: str | None = None
+class GenerateSchema(Schema):
+    seed = fields.Int(default=-1)
+    steps = fields.Int(default=20)
+    cfg_scale = fields.Float(default=7)
+    width = fields.Int(default=512)
+    height = fields.Int(default=512)
+    restore_faces = fields.Bool(default=False)
+    negative_prompt = fields.Str(required=True)
+    prompt = fields.Str(required=True)
+    sampler = fields.Str(default="Euler")
+    test = fields.Bool(default=False)
 
 
 @routes.post("/v1/generate")
@@ -40,11 +39,16 @@ async def text2img(request):
     start_time = time.time()
 
     data = await request.json()
-
+    print(data)
+    schema = GenerateSchema()
     try:
-        d = GenerateData(**data)
-    except ValidationError as e:
-        return web.Response(status=400, text=str(e))
+        d = schema.load(data)
+    except ValidationError as err:
+        print(err.messages)
+        return web.json_response({"error": True, "message": err.messages}, status=400)
+
+    if d["test"] is True:
+        return web.json_response({"time": 0.0, "img": "", **schema.dump(d)})
 
     # Load model
     checkpoint_loader = CheckpointLoaderSimple()
@@ -53,27 +57,23 @@ async def text2img(request):
 
     # CLIP Text encoder
     clip_encoder = CLIPTextEncode()
-    (positive,) = clip_encoder.encode(clip, d.prompt)
-    (negative,) = clip_encoder.encode(clip, d.negative_prompt)
+    (positive,) = clip_encoder.encode(clip, d["prompt"])
+    (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
 
-    if d.img is None:
-        n = EmptyLatentImage()
-        (latent,) = n.generate(width=512, height=512)
-    else:
-        latent, _ = img.load_base64_image(d.img)
-        vae_encoder = VAEEncode()
-        (latent,) = vae_encoder.encode(vae, latent)
+    n = EmptyLatentImage()
+    (latent,) = n.generate(width=d["width"], height=d["height"])
 
     samples = cd.text2img_sampler(
         model,
         positive,
         negative,
         latent=latent,
-        seed=d.seed,
-        steps=d.steps,
-        cfg=d.cfg_scale,
-        sampler_name=d.sampler,
+        seed=d["seed"],
+        steps=d["steps"],
+        cfg=d["cfg_scale"],
+        sampler_name=d["sampler"],
     )
+
     decoded = vae.decode(samples)
     print("VAE decoded")
     img.save_image(
@@ -81,32 +81,41 @@ async def text2img(request):
         filename_prefix="CD",
     )
     end_time = time.time()
+    img64 = img.images_to_base64(decoded)
 
-    return web.json_response({"time": end_time - start_time, **d.model_dump()})
+    return web.json_response(
+        {"time": end_time - start_time, img: img64[0], **schema.dump(d)}
+    )
 
 
-class UpscaleData(BaseModel):
-    seed: int
-    steps: int
-    cfg_scale: float
-    width: int
-    height: int
-    restore_faces: bool
-    negative_prompt: str
-    prompt: str
-    sampler: str
-    img: str
+class UpscaleSchema(Schema):
+    seed = fields.Int(default=-1)
+    steps = fields.Int(default=20)
+    cfg_scale = fields.Float()
+    upscale_by = fields.Int(default=2)
+    restore_faces = fields.Bool(default=False)
+    negative_prompt = fields.Str(required=True)
+    prompt = fields.Str(required=True)
+    sampler = fields.Str(default="Euler")
+    denoising_strength = fields.Float(default=0.3)
+    img = fields.Str(required=True)
+    test = fields.Bool(default=False)
 
 
 @routes.post("/v1/upscale")
 async def img2img(request):
     start_time = time.time()
     data = await request.json()
+    schema = UpscaleSchema()
 
     try:
-        d = UpscaleData(**data)
-    except ValidationError as e:
-        return web.Response(status=400, text=str(e))
+        d = schema.load(data)
+    except ValidationError as err:
+        print(err.messages)
+        return web.json_response({"error": True, "message": err.messages}, status=400)
+
+    if d["test"] is True:
+        return web.json_response({"time": 0.0, "img": "", **schema.dump(d)})
 
     # Load model
     checkpoint_loader = CheckpointLoaderSimple()
@@ -121,12 +130,10 @@ async def img2img(request):
 
     # CLIP Text encoder
     clip_encoder = CLIPTextEncode()
-    (positive,) = clip_encoder.encode(clip, d.prompt)
-    (negative,) = clip_encoder.encode(clip, d.negative_prompt)
+    (positive,) = clip_encoder.encode(clip, d["prompt"])
+    (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
 
-    (latent, _mask) = img.load_base64_image(d.img)
-
-    # (upscaled) = ImageUpscaleWithModel
+    (latent, _mask) = img.base64_to_image(d["img"])
 
     class_def = NODE_CLASS_MAPPINGS["UltimateSDUpscale"]
     obj = class_def()
@@ -137,11 +144,11 @@ async def img2img(request):
         positive=positive,
         negative=negative,
         vae=vae,
-        upscale_by=2,
-        seed=d.seed,
-        steps=d.steps,
-        cfg=d.cfg_scale,
-        sampler_name=d.sampler,
+        upscale_by=d["upscale_by"],
+        seed=d["seed"],
+        steps=d["steps"],
+        cfg=d["cfg_scale"],
+        sampler_name=d["sampler"],
         scheduler="normal",
         denoise=0.1,
         mode_type="Linear",
@@ -163,12 +170,12 @@ async def img2img(request):
         filename_prefix="CD",
     )
 
+    img64 = img.images_to_base64(upscaled)
+
     end_time = time.time()
 
     return web.json_response(
-        {
-            "time": end_time - start_time,
-        }
+        {"time": end_time - start_time, img: img64[0], **schema.dump(d)}
     )
 
 
