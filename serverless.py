@@ -1,15 +1,20 @@
+import random
 import time
 from aiohttp import web
 from marshmallow import Schema, fields, ValidationError
+import torch
 
 from nodes import (
     NODE_CLASS_MAPPINGS,
     CLIPTextEncode,
     EmptyLatentImage,
     CheckpointLoaderSimple,
+    KSampler,
+    SaveImage,
+    VAEDecode,
     init_custom_nodes,
 )
-from sl import img, cd, stats
+from sl import img, stats
 from comfy.cli_args import args
 import folder_paths
 
@@ -30,6 +35,7 @@ class GenerateSchema(Schema):
     restore_faces = fields.Bool(default=False)
     negative_prompt = fields.Str(required=True)
     prompt = fields.Str(required=True)
+    batch_size = fields.Int(default=1)
     sampler = fields.Str(default="Euler")
     test = fields.Bool(default=False)
 
@@ -42,13 +48,13 @@ async def text2img(request):
     print(data)
     schema = GenerateSchema()
     try:
-        d = schema.load(data)
+        d = schema.dump(schema.load(data))
     except ValidationError as err:
         print(err.messages)
         return web.json_response({"error": True, "message": err.messages}, status=400)
 
     if d["test"] is True:
-        return web.json_response({"time": 0.0, "img": "", **schema.dump(d)})
+        return web.json_response({"time": 0.0, "img": "", **d})
 
     # Load model
     checkpoint_loader = CheckpointLoaderSimple()
@@ -61,31 +67,42 @@ async def text2img(request):
     (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
 
     n = EmptyLatentImage()
-    (latent,) = n.generate(width=d["width"], height=d["height"])
+    (latent,) = n.generate(
+        width=d["width"], height=d["height"], batch_size=d["batch_size"]
+    )
 
-    samples = cd.text2img_sampler(
+    if d["seed"] == -1:
+        d["seed"] = random.randint(0, 0xFFFFFFFFFFFFFFFF)
+
+    s = KSampler()
+    (samples,) = s.sample(
         model,
-        positive,
-        negative,
-        latent=latent,
         seed=d["seed"],
         steps=d["steps"],
         cfg=d["cfg_scale"],
         sampler_name=d["sampler"],
+        scheduler="normal",
+        positive=positive,
+        negative=negative,
+        latent_image=latent,
+        denoise=1.0,
     )
-
-    decoded = vae.decode(samples)
+    decoder = VAEDecode()
+    (decoded,) = decoder.decode(vae, samples)
     print("VAE decoded")
-    img.save_image(
-        decoded,
-        filename_prefix="CD",
-    )
-    end_time = time.time()
-    img64 = img.images_to_base64(decoded)
 
-    return web.json_response(
-        {"time": end_time - start_time, img: img64[0], **schema.dump(d)}
-    )
+    with torch.no_grad():
+        img_saver = SaveImage()
+        img_saver.save_images(decoded, filename_prefix="CD")
+
+    print("Images Saved")
+
+    images = img.images_to_base64(decoded)
+    end_time = time.time()
+
+    r = {"time": end_time - start_time, "images": images, **d}
+    print(r)
+    return web.json_response(r)
 
 
 class UpscaleSchema(Schema):
@@ -170,13 +187,13 @@ async def img2img(request):
         filename_prefix="CD",
     )
 
-    img64 = img.images_to_base64(upscaled)
+    images = img.images_to_base64(upscaled)
 
     end_time = time.time()
 
-    return web.json_response(
-        {"time": end_time - start_time, img: img64[0], **schema.dump(d)}
-    )
+    r = {"time": end_time - start_time, "images": images, **d}
+    print(r)
+    return web.json_response(r)
 
 
 def create_cors_middleware(allowed_origin: str):
