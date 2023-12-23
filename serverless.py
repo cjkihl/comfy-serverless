@@ -59,17 +59,21 @@ async def text2img(request):
     # Load model
     checkpoint_loader = CheckpointLoaderSimple()
     checkpoint_name = folder_paths.get_filename_list("checkpoints")[0]
+    print(checkpoint_name)
     model, clip, vae = checkpoint_loader.load_checkpoint(checkpoint_name)
+    print("Checkpoint Loaded")
 
     # CLIP Text encoder
     clip_encoder = CLIPTextEncode()
     (positive,) = clip_encoder.encode(clip, d["prompt"])
     (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
+    print("CLIP Encoded")
 
     n = EmptyLatentImage()
     (latent,) = n.generate(
         width=d["width"], height=d["height"], batch_size=d["batch_size"]
     )
+    print("Latent Image Generated")
 
     if d["seed"] == -1:
         d["seed"] = random.randint(0, 0xFFFFFFFFFFFFFFFF)
@@ -87,6 +91,8 @@ async def text2img(request):
         latent_image=latent,
         denoise=1.0,
     )
+    print("Samples Generated")
+
     decoder = VAEDecode()
     (decoded,) = decoder.decode(vae, samples)
     print("VAE decoded")
@@ -98,6 +104,8 @@ async def text2img(request):
     print("Images Saved")
 
     images = img.images_to_base64(decoded)
+    print("Images Base 64 Encoded")
+
     end_time = time.time()
 
     r = {"time": end_time - start_time, "images": images, **d}
@@ -137,7 +145,9 @@ async def img2img(request):
     # Load model
     checkpoint_loader = CheckpointLoaderSimple()
     checkpoint_name = folder_paths.get_filename_list("checkpoints")[0]
+    print(checkpoint_name)
     model, clip, vae = checkpoint_loader.load_checkpoint(checkpoint_name)
+    print("Checkpoint Loaded")
 
     # Load Upscaler
     class_def = NODE_CLASS_MAPPINGS["UpscaleModelLoader"]
