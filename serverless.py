@@ -10,9 +10,7 @@ from nodes import (
     CheckpointLoaderSimple,
     init_custom_nodes,
 )
-import sl.cd
-import sl.img
-import sl.stats
+from sl import img, cd, stats
 from comfy.cli_args import args
 import folder_paths
 
@@ -21,7 +19,7 @@ routes = web.RouteTableDef()
 
 @routes.get("/")
 async def status(request):
-    return web.json_response(sl.stats.get_stats())
+    return web.json_response(stats.get_stats())
 
 
 class GenerateData(BaseModel):
@@ -62,11 +60,11 @@ async def text2img(request):
         n = EmptyLatentImage()
         (latent,) = n.generate(width=512, height=512)
     else:
-        latent, _ = sl.img.load_base64_image(d.img)
+        latent, _ = img.load_base64_image(d.img)
         vae_encoder = VAEEncode()
         (latent,) = vae_encoder.encode(vae, latent)
 
-    samples = sl.cd.text2img_sampler(
+    samples = cd.text2img_sampler(
         model,
         positive,
         negative,
@@ -78,7 +76,7 @@ async def text2img(request):
     )
     decoded = vae.decode(samples)
     print("VAE decoded")
-    sl.img.save_image(
+    img.save_image(
         decoded,
         filename_prefix="CD",
     )
@@ -126,7 +124,7 @@ async def img2img(request):
     (positive,) = clip_encoder.encode(clip, d.prompt)
     (negative,) = clip_encoder.encode(clip, d.negative_prompt)
 
-    (latent, _mask) = sl.img.load_base64_image(d.img)
+    (latent, _mask) = img.load_base64_image(d.img)
 
     # (upscaled) = ImageUpscaleWithModel
 
@@ -160,7 +158,7 @@ async def img2img(request):
         tiled_decode=False,
     )
 
-    sl.img.save_image(
+    img.save_image(
         upscaled,
         filename_prefix="CD",
     )
