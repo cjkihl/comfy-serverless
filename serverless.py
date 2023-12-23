@@ -32,7 +32,7 @@ class GenerateData(BaseModel):
     negative_prompt: str
     prompt: str
     sampler: str
-    img: Optional[str] = None
+    img: str | None = None
 
 
 @routes.post("/v1/generate")
