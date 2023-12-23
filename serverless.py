@@ -64,10 +64,11 @@ async def text2img(request):
     print("Checkpoint Loaded")
 
     # CLIP Text encoder
-    clip_encoder = CLIPTextEncode()
-    (positive,) = clip_encoder.encode(clip, d["prompt"])
-    (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
-    print("CLIP Encoded")
+    with torch.no_grad():
+        clip_encoder = CLIPTextEncode()
+        (positive,) = clip_encoder.encode(clip, d["prompt"])
+        (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
+        print("CLIP Encoded")
 
     n = EmptyLatentImage()
     (latent,) = n.generate(
