@@ -149,7 +149,7 @@ def restore_faces(
     # Load BBox Detector
     class_def = NODE_CLASS_MAPPINGS["UltralyticsDetectorProvider"]
     obj = class_def()
-    (bbox,) = getattr(obj, class_def.FUNCTION)("bbox/face_yolov8m.pt")
+    (bbox, *_) = getattr(obj, class_def.FUNCTION)("bbox/face_yolov8m.pt")
     # Load Sam Model
     class_def = NODE_CLASS_MAPPINGS["SAMLoader"]
     obj = class_def()
@@ -158,7 +158,7 @@ def restore_faces(
     class_def = NODE_CLASS_MAPPINGS["FaceDetailer"]
     obj = class_def()
     seed = random.randint(0, 0xFFFFFFFFFFFFFFFF)
-    (new_img,) = getattr(obj, class_def.FUNCTION)(
+    (new_img, *_) = getattr(obj, class_def.FUNCTION)(
         image=image,
         model=model,
         clip=clip,
@@ -169,7 +169,6 @@ def restore_faces(
         positive=positive,
         negative=negative,
     )
-
     return new_img
 
 
