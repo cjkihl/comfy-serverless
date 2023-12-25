@@ -189,6 +189,7 @@ def restore_faces(
         sam_mask_hint_threshold=0.7,
         sam_mask_hint_use_negative=False,
         drop_size=10,
+        wildcard="",
         cycle=1,
     )
     return new_img
