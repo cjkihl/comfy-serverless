@@ -1,6 +1,7 @@
 import os
 import sys
 from comfy import model_management
+from nodes import NODE_CLASS_MAPPINGS
 
 
 def get_stats():
@@ -30,5 +31,6 @@ def get_stats():
                 "torch_vram_free": torch_vram_free,
             }
         ],
+        "nodes": list(NODE_CLASS_MAPPINGS.keys()),
     }
     return system_stats

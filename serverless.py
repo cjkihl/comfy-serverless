@@ -5,6 +5,23 @@ import torch
 from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 from comfy.cli_args import args
 
+from server import PromptServer
+
+
+class DummyPromptServer:
+    client_id = None
+    routes = web.RouteTableDef()
+
+    def send_sync(self, event, data, sid=None):
+        pass
+
+    def add_on_prompt_handler(self, handler):
+        pass
+
+
+## Mock PromptServer so custom nodes will not crash
+PromptServer.instance = DummyPromptServer()
+
 from nodes import (
     init_custom_nodes,
 )
@@ -13,6 +30,7 @@ from sl.cd import (
     encode_clip,
     load_loras,
     load_model,
+    restore_faces,
     sample,
     save_images,
     upscale,
@@ -34,6 +52,8 @@ class GenerateSchema(Schema):
     width = fields.Int(dump_default=512)
     height = fields.Int(dump_default=512)
     restore_faces = fields.Bool(dump_default=False)
+    face_prompt = fields.Str()
+    face_loras = fields.List(fields.Str(), dump_default=[])
     negative_prompt = fields.Str(required=True)
     prompt = fields.Str(required=True)
     batch_size = fields.Int(dump_default=1)
@@ -56,10 +76,16 @@ async def text2img(request):
     with torch.inference_mode():
         model, clip, vae = load_model()
         model, clip = load_loras(d["loras"], model, clip)
-        (positive, negative) = encode_clip(clip, d)
+        negative = encode_clip(clip, d["negative_prompt"])
+        positive = encode_clip(clip, d["prompt"])
         (decoded, seeds) = sample(model, d, positive, negative, vae)
+        if d["restore_faces"]:
+            if d["face_prompt"]:
+                (positive) = encode_clip(clip, d["face_prompt"])
+            if d["face_loras"]:
+                model, clip = load_loras(d["face_loras"], model, clip)
+            images = restore_faces(decoded, model, clip, vae, positive, negative)
         images = save_images(decoded)
-
     end_time = time.time()
 
     r = {"time": end_time - start_time, "images": images, "info": d, "seeds": seeds}
@@ -95,7 +121,8 @@ async def img2img(request):
     with torch.inference_mode():
         (model, clip, vae) = load_model()
         model, clip = load_loras(d["loras"], model, clip)
-        (positive, negative) = encode_clip(clip, d)
+        negative = encode_clip(clip, d["negative_prompt"])
+        positive = encode_clip(clip, d["prompt"])
         (upscaled, seeds) = upscale(model, d, positive, negative, vae)
         images = save_images(upscaled)
 

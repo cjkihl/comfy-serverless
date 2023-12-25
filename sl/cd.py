@@ -57,20 +57,20 @@ loaded_loras = {}
 
 def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP | None):
     for n in names:
-        s = n.split(":")
-        lora_name = s[0]
-        if len(s) == 1:
-            strength = 1.0
-        else:
-            strength = float(s[1])
+        parts = n.split(":")
+        lora_name = parts[0]
+        strength_model = 1.0 if len(parts) < 2 else float(parts[1])
+        strength_clip = 1.0 if len(parts) < 3 else float(parts[2])
         lora = loaded_loras.get(lora_name)
         if lora is None:
             lora_path = folder_paths.get_full_path("loras", lora_name + ".safetensors")
             if lora_path is None:
                 raise FileNotFoundError("Lora not found", lora_name)
-            print("Loading lora", lora_name, strength)
+            print("Loading lora", lora_name, strength_model, strength_clip)
             loaded_loras[lora_name] = lora = load_torch_file(lora_path, safe_load=True)
-        (model, clip) = load_lora_for_models(model, clip, lora, strength, strength)
+        (model, clip) = load_lora_for_models(
+            model, clip, lora, strength_model, strength_clip
+        )
     return (model, clip)
 
 
@@ -87,13 +87,16 @@ def load_upscaler():
     return (upscale_model,)
 
 
-def encode_clip(clip: CLIP, d):
+clip_encoder: CLIPTextEncode | None = None
+
+
+def encode_clip(clip: CLIP, text: str):
     print("Encoding CLIP")
-    clip_encoder = CLIPTextEncode()
-    (positive,) = clip_encoder.encode(clip, d["prompt"])
-    (negative,) = clip_encoder.encode(clip, d["negative_prompt"])
+    if clip_encoder is None:
+        clip_encoder = CLIPTextEncode()
+    (cond,) = clip_encoder.encode(clip, text)
     print("CLIP Encoded")
-    return (positive, negative)
+    return cond
 
 
 def save_images(images):
@@ -132,6 +135,41 @@ def sample(model, d, positive, negative, vae):
     (decoded,) = decoder.decode(vae, samples)
     print("VAE decoded")
     return (decoded, [d["seed"]])
+
+
+def restore_faces(
+    image,
+    model,
+    clip,
+    vae,
+    positive,
+    negative,
+):
+    # Load BBox Detector
+    class_def = NODE_CLASS_MAPPINGS["UltralyticsDetectorProvider"]
+    obj = class_def()
+    (bbox,) = getattr(obj, class_def.FUNCTION)("bbox/face_yolov8m.pt")
+    # Load Sam Model
+    class_def = NODE_CLASS_MAPPINGS["SAMLoader"]
+    obj = class_def()
+    (sam,) = getattr(obj, class_def.FUNCTION)("sam_vit_b_01ec64.pth")
+    # Load Dace Detailer
+    class_def = NODE_CLASS_MAPPINGS["FaceDetailer"]
+    obj = class_def()
+    seed = random.randint(0, 0xFFFFFFFFFFFFFFFF)
+    (new_img,) = getattr(obj, class_def.FUNCTION)(
+        image=image,
+        model=model,
+        clip=clip,
+        vae=vae,
+        seed=seed,
+        bbox_detector=bbox,
+        sam_model_opt=sam,
+        positive=positive,
+        negative=negative,
+    )
+
+    return new_img
 
 
 def upscale(model, d, positive, negative, vae):
