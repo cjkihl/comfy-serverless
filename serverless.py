@@ -79,10 +79,10 @@ async def text2img(request):
         negative = encode_clip(clip, d["negative_prompt"])
         positive = encode_clip(clip, d["prompt"])
         (decoded, seeds) = sample(model, d, positive, negative, vae)
-        if d["restore_faces"]:
-            if d["face_prompt"]:
+        if "restore_faces" in d:
+            if "face_prompt" in d:
                 (positive) = encode_clip(clip, d["face_prompt"])
-            if d["face_loras"]:
+            if "face_loras" in d:
                 model, clip = load_loras(d["face_loras"], model, clip)
             images = restore_faces(decoded, model, clip, vae, positive, negative)
         images = save_images(decoded)
