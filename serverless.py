@@ -1,12 +1,13 @@
 import time
 from aiohttp import web
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 import torch
+from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
+from comfy.cli_args import args
 
 from nodes import (
     init_custom_nodes,
 )
-from comfy.cli_args import args
 from sl import stats
 from sl.cd import (
     encode_clip,
@@ -15,7 +16,7 @@ from sl.cd import (
     sample,
     save_images,
     upscale,
-    validate,
+    run_validation,
 )
 
 routes = web.RouteTableDef()
@@ -27,25 +28,28 @@ async def status(_):
 
 
 class GenerateSchema(Schema):
-    seed = fields.Int(default=-1)
-    steps = fields.Int(default=20)
-    cfg_scale = fields.Float(default=7)
-    width = fields.Int(default=512)
-    height = fields.Int(default=512)
-    restore_faces = fields.Bool(default=False)
+    seed = fields.Int(dump_default=-1)
+    steps = fields.Int(dump_default=20)
+    cfg_scale = fields.Float(dump_default=7)
+    width = fields.Int(dump_default=512)
+    height = fields.Int(dump_default=512)
+    restore_faces = fields.Bool(dump_default=False)
     negative_prompt = fields.Str(required=True)
     prompt = fields.Str(required=True)
-    batch_size = fields.Int(default=1)
-    sampler = fields.Str(default="Euler")
-    test = fields.Bool(default=False)
-    loras = fields.List(fields.Str(), default=[])
+    batch_size = fields.Int(dump_default=1)
+    sampler = fields.Str(dump_default="euler", validate=validate.OneOf(SAMPLER_NAMES))
+    scheduler = fields.Str(
+        dump_default="normal", validate=validate.OneOf(SCHEDULER_NAMES)
+    )
+    test = fields.Bool(dump_default=False)
+    loras = fields.List(fields.Str(), dump_default=[])
 
 
 @routes.post("/v1/generate")
 async def text2img(request):
     start_time = time.time()
 
-    (d, r) = await validate(GenerateSchema, request)
+    (d, r) = await run_validation(GenerateSchema, request)
     if r is not None:
         return r
 
@@ -53,35 +57,38 @@ async def text2img(request):
         model, clip, vae = load_model()
         model, clip = load_loras(d["loras"], model, clip)
         (positive, negative) = encode_clip(clip, d)
-        decoded = sample(model, d, positive, negative, vae)
+        (decoded, seeds) = sample(model, d, positive, negative, vae)
         images = save_images(decoded)
 
     end_time = time.time()
 
-    r = {"time": end_time - start_time, "images": images, **d}
+    r = {"time": end_time - start_time, "images": images, "info": d, "seeds": seeds}
     print(r)
     return web.json_response(r)
 
 
 class UpscaleSchema(Schema):
-    seed = fields.Int(default=-1)
-    steps = fields.Int(default=20)
+    seed = fields.Int(dump_default=-1)
+    steps = fields.Int(dump_default=20)
     cfg_scale = fields.Float()
-    upscale_by = fields.Int(default=2)
-    restore_faces = fields.Bool(default=False)
+    upscale_by = fields.Int(dump_default=2)
+    restore_faces = fields.Bool(dump_default=False)
     negative_prompt = fields.Str(required=True)
     prompt = fields.Str(required=True)
-    sampler = fields.Str(default="Euler")
-    denoising_strength = fields.Float(default=0.3)
-    img = fields.Str(required=True)
-    test = fields.Bool(default=False)
-    loras = fields.List(fields.Str(), default=[])
+    sampler = fields.Str(dump_default="euler", validate=validate.OneOf(SAMPLER_NAMES))
+    scheduler = fields.Str(
+        dump_default="normal", validate=validate.OneOf(SCHEDULER_NAMES)
+    )
+    denoising_strength = fields.Float(dump_default=0.3)
+    image = fields.Str(required=True)
+    test = fields.Bool(dump_default=False)
+    loras = fields.List(fields.Str(), dump_default=[])
 
 
 @routes.post("/v1/upscale")
 async def img2img(request):
     start_time = time.time()
-    (d, r) = await validate(UpscaleSchema, request)
+    (d, r) = await run_validation(UpscaleSchema, request)
     if r is not None:
         return r
 
@@ -89,12 +96,12 @@ async def img2img(request):
         (model, clip, vae) = load_model()
         model, clip = load_loras(d["loras"], model, clip)
         (positive, negative) = encode_clip(clip, d)
-        upscaled = upscale(model, d, positive, negative, vae)
+        (upscaled, seeds) = upscale(model, d, positive, negative, vae)
         images = save_images(upscaled)
 
     end_time = time.time()
 
-    r = {"time": end_time - start_time, "images": images, **d}
+    r = {"time": end_time - start_time, "images": images, "info": d, "seeds": seeds}
     print(r)
     return web.json_response(r)
 

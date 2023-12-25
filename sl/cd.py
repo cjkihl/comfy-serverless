@@ -1,10 +1,9 @@
-from ast import Dict
 import random
 from typing import List
 from marshmallow import ValidationError
 from aiohttp import web
-from torch import Tensor
-from comfy.sd import load_lora_for_models
+from comfy.model_patcher import ModelPatcher
+from comfy.sd import CLIP, load_lora_for_models
 from comfy.utils import load_torch_file
 
 from nodes import (
@@ -23,7 +22,7 @@ import folder_paths
 nodes = []
 
 
-async def validate(schema_def, request):
+async def run_validation(schema_def, request):
     data = await request.json()
     schema = schema_def()
     print({"input_data": data})
@@ -53,18 +52,25 @@ def load_model():
 
 
 # Lora cache
-loaded_loras: Dict[str, Dict[str, Tensor]] = {}
+loaded_loras = {}
 
 
-def load_loras(names: List[str] | None, model, clip):
+def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP | None):
     for n in names:
-        lora_name, strength = (n.split(":") + [1])[:2]
+        s = n.split(":")
+        lora_name = s[0]
+        if len(s) == 1:
+            strength = 1.0
+        else:
+            strength = float(s[1])
         lora = loaded_loras.get(lora_name)
         if lora is None:
-            lora_path = folder_paths.get_full_path("loras", lora_name)
-            print("Loading lora", lora_path)
+            lora_path = folder_paths.get_full_path("loras", lora_name + ".safetensors")
+            if lora_path is None:
+                raise FileNotFoundError("Lora not found", lora_name)
+            print("Loading lora", lora_name, strength)
             loaded_loras[lora_name] = lora = load_torch_file(lora_path, safe_load=True)
-        model, clip = load_lora_for_models(model, clip, lora, strength, strength)
+        (model, clip) = load_lora_for_models(model, clip, lora, strength, strength)
     return (model, clip)
 
 
@@ -81,7 +87,7 @@ def load_upscaler():
     return (upscale_model,)
 
 
-def encode_clip(clip, d):
+def encode_clip(clip: CLIP, d):
     print("Encoding CLIP")
     clip_encoder = CLIPTextEncode()
     (positive,) = clip_encoder.encode(clip, d["prompt"])
@@ -125,12 +131,15 @@ def sample(model, d, positive, negative, vae):
     decoder = VAEDecode()
     (decoded,) = decoder.decode(vae, samples)
     print("VAE decoded")
-    return decoded
+    return (decoded, [d["seed"]])
 
 
 def upscale(model, d, positive, negative, vae):
     (upscale_model,) = load_upscaler()
-    (latent, _) = img.base64_to_image(d["img"])
+    (latent, _) = img.base64_to_image(d["image"])
+    if d["seed"] == -1:
+        d["seed"] = random.randint(0, 0xFFFFFFFFFFFFFFFF)
+
     print("Start Upscaling")
     class_def = NODE_CLASS_MAPPINGS["UltimateSDUpscale"]
     obj = class_def()
@@ -162,4 +171,4 @@ def upscale(model, d, positive, negative, vae):
         tiled_decode=False,
     )
     print("Upscaling done")
-    return upscaled
+    return (upscaled, [d["seed"]])
