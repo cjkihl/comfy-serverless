@@ -91,6 +91,7 @@ clip_encoder: CLIPTextEncode | None = None
 
 
 def encode_clip(clip: CLIP, text: str):
+    global clip_encoder
     print("Encoding CLIP")
     if clip_encoder is None:
         clip_encoder = CLIPTextEncode()
