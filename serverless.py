@@ -51,7 +51,6 @@ class GenerateSchema(Schema):
     cfg_scale = fields.Float(dump_default=7)
     width = fields.Int(dump_default=512)
     height = fields.Int(dump_default=512)
-    restore_faces = fields.Bool(dump_default=False)
     face_prompt = fields.Str()
     face_loras = fields.List(fields.Str(), dump_default=[])
     negative_prompt = fields.Str(required=True)
@@ -79,13 +78,17 @@ async def text2img(request):
         negative = encode_clip(clip, d["negative_prompt"])
         positive = encode_clip(clip_with_loras, d["prompt"])
         (decoded, seeds) = sample(model_with_loras, d, positive, negative, vae)
-        if "restore_faces" in d:
-            if "face_loras" in d:
-                model_with_face_loras, clip_with_face_loras = load_loras(
-                    d["face_loras"], model, clip
-                )
-            if "face_prompt" in d:
-                (face_positive) = encode_clip(clip, d["face_prompt"])
+
+        # If we have a separate face prompt, run a second pass to restore faces
+        if "face_prompt" in d:
+            print("Restoring faces")
+            model_with_face_loras, clip_with_face_loras = load_loras(
+                d["face_loras"], model, clip
+            )
+            face_positive = encode_clip(
+                clip_with_face_loras,
+                d["face_prompt"],
+            )
             images = restore_faces(
                 decoded,
                 model_with_face_loras,
