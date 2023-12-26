@@ -75,16 +75,25 @@ async def text2img(request):
 
     with torch.inference_mode():
         model, clip, vae = load_model()
-        model, clip = load_loras(d["loras"], model, clip)
+        model_with_loras, clip_with_loras = load_loras(d["loras"], model, clip)
         negative = encode_clip(clip, d["negative_prompt"])
-        positive = encode_clip(clip, d["prompt"])
-        (decoded, seeds) = sample(model, d, positive, negative, vae)
+        positive = encode_clip(clip_with_loras, d["prompt"])
+        (decoded, seeds) = sample(model_with_loras, d, positive, negative, vae)
         if "restore_faces" in d:
             if "face_loras" in d:
-                model, clip = load_loras(d["face_loras"], model, clip)
+                model_with_face_loras, clip_with_face_loras = load_loras(
+                    d["face_loras"], model, clip
+                )
             if "face_prompt" in d:
-                (positive) = encode_clip(clip, d["face_prompt"])
-            images = restore_faces(decoded, model, clip, vae, positive, negative)
+                (face_positive) = encode_clip(clip, d["face_prompt"])
+            images = restore_faces(
+                decoded,
+                model_with_face_loras,
+                clip_with_face_loras,
+                vae,
+                face_positive,
+                negative,
+            )
         images = save_images(decoded)
     end_time = time.time()
 
