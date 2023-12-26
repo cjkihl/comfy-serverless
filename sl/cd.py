@@ -229,7 +229,7 @@ def upscale(model, d, positive, negative, vae):
         cfg=d["cfg_scale"],
         sampler_name=d["sampler"],
         scheduler="normal",
-        denoise=0.1,
+        denoise=d["denoising_strength"],
         mode_type="Linear",
         tile_width=512,
         tile_height=512,

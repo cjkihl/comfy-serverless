@@ -146,6 +146,8 @@ async def img2img(request):
 
     end_time = time.time()
 
+    # remove image from d, we don't want it to bloat the output
+    d.pop("image", None)
     r = {"time": end_time - start_time, "info": d, "seeds": seeds}
     print(r)
     r["images"] = images
