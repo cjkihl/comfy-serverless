@@ -8,7 +8,6 @@ from comfy.utils import load_torch_file
 
 from nodes import (
     NODE_CLASS_MAPPINGS,
-    CLIPTextEncode,
     CheckpointLoaderSimple,
     EmptyLatentImage,
     KSampler,
@@ -64,6 +63,11 @@ loaded_loras = {}
 
 
 def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP | None):
+    if names is None:
+        return (model, clip)
+
+    model_with_loras = model
+    clip_with_loras = clip
     for n in names:
         parts = n.split(":")
         lora_name = parts[0]
@@ -77,10 +81,14 @@ def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP |
                 raise FileNotFoundError("Lora not found", lora_name)
             print("Loading lora", lora_name, strength_model, strength_clip)
             loaded_loras[lora_name] = lora = load_torch_file(lora_path, safe_load=True)
-        (model, clip) = load_lora_for_models(
-            model, clip, lora, strength_model, strength_clip
+
+        (m, c) = load_lora_for_models(
+            model_with_loras, clip_with_loras, lora, strength_model, strength_clip
         )
-    return (model, clip)
+        model_with_loras = m
+        clip_with_loras = c
+
+    return (model_with_loras, clip_with_loras)
 
 
 def load_upscaler():
@@ -96,17 +104,16 @@ def load_upscaler():
     return (upscale_model,)
 
 
-clip_encoder: CLIPTextEncode | None = None
-
-
 def encode_clip(clip: CLIP, text: str):
-    global clip_encoder
-    print("Encoding CLIP")
-    if clip_encoder is None:
-        clip_encoder = CLIPTextEncode()
-    (cond,) = clip_encoder.encode(clip, text)
+    print("Encoding CLIP", text)
+    tokens = clip.tokenize(text)
+    cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
     print("CLIP Encoded")
-    return cond
+    return [[cond, {"pooled_output": pooled}]]
+    # if clip_encoder is None:
+    #     clip_encoder = CLIPTextEncode()
+    # (cond,) = clip_encoder.encode(clip, text)
+    # return cond
 
 
 def save_images(images):
