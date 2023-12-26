@@ -19,7 +19,7 @@ from sl import img
 import folder_paths
 
 
-nodes = []
+node_cache = {}
 
 
 async def run_validation(schema_def, request):
@@ -39,14 +39,22 @@ async def run_validation(schema_def, request):
     return (d, None)
 
 
+model_cache = {}
+
+
 def load_model():
-    checkpoint_loader = CheckpointLoaderSimple()
     l = folder_paths.get_filename_list("checkpoints")
     if not l:
         raise FileNotFoundError("No checkpoints found")
     n = l[0]
     print(n)
+    global model_cache
+    if n in model_cache:
+        return model_cache[n]
+
+    checkpoint_loader = CheckpointLoaderSimple()
     model, clip, vae = checkpoint_loader.load_checkpoint(n)
+    model_cache[n] = (model, clip, vae)
     print("Checkpoint Loaded")
     return (model, clip, vae)
 
@@ -150,10 +158,6 @@ def restore_faces(
     class_def = NODE_CLASS_MAPPINGS["UltralyticsDetectorProvider"]
     obj = class_def()
     (bbox, *_) = getattr(obj, class_def.FUNCTION)("bbox/face_yolov8m.pt")
-    # Load Sam Model
-    class_def = NODE_CLASS_MAPPINGS["SAMLoader"]
-    obj = class_def()
-    (sam,) = getattr(obj, class_def.FUNCTION)("sam_vit_b_01ec64.pth")
     # Load Dace Detailer
     class_def = NODE_CLASS_MAPPINGS["FaceDetailer"]
     obj = class_def()
@@ -164,15 +168,14 @@ def restore_faces(
         clip=clip,
         vae=vae,
         bbox_detector=bbox,
-        sam_model_opt=sam,
         guide_size=256,
         guide_size_for=True,
-        max_size=768,
+        max_size=512,
         seed=seed,
-        steps=20,
-        cfg=8.0,
-        sampler_name="euler",
-        scheduler="normal",
+        steps=40,
+        cfg=5.0,
+        sampler_name="dpmpp_2m",
+        scheduler="karras",
         positive=positive,
         negative=negative,
         denoise=0.5,
