@@ -64,6 +64,25 @@ class GenerateSchema(Schema):
     loras = fields.List(fields.Str(), dump_default=[])
 
 
+def face_restoration_pass(image, model, clip, vae, d, negative):
+    print("Restoring faces")
+    model_with_face_loras, clip_with_face_loras = load_loras(
+        d["face_loras"], model, clip
+    )
+    face_positive = encode_clip(
+        clip_with_face_loras,
+        d["face_prompt"],
+    )
+    return restore_faces(
+        image,
+        model_with_face_loras,
+        clip_with_face_loras,
+        vae,
+        face_positive,
+        negative,
+    )
+
+
 @routes.post("/v1/generate")
 async def text2img(request):
     start_time = time.time()
@@ -81,23 +100,9 @@ async def text2img(request):
 
         # If we have a separate face prompt, run a second pass to restore faces
         if "face_prompt" in d:
-            print("Restoring faces")
-            model_with_face_loras, clip_with_face_loras = load_loras(
-                d["face_loras"], model, clip
-            )
-            face_positive = encode_clip(
-                clip_with_face_loras,
-                d["face_prompt"],
-            )
-            images = restore_faces(
-                decoded,
-                model_with_face_loras,
-                clip_with_face_loras,
-                vae,
-                face_positive,
-                negative,
-            )
+            decoded = face_restoration_pass(decoded, model, clip, vae, d, negative)
         images = save_images(decoded)
+
     end_time = time.time()
 
     r = {"time": end_time - start_time, "info": d, "seeds": seeds}

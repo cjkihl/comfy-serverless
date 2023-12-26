@@ -59,10 +59,11 @@ def load_model():
 
 
 # Lora cache
-loaded_loras = {}
+lora_cache = {}
 
 
 def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP | None):
+    global lora_cache
     if names is None:
         return (model, clip)
 
@@ -74,13 +75,13 @@ def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP |
         strength_model = 1.0 if len(parts) < 2 else float(parts[1])
         strength_clip = 1.0 if len(parts) < 3 else float(parts[2])
         print("Applying lora", lora_name, strength_model, strength_clip)
-        lora = loaded_loras.get(lora_name)
+        lora = lora_cache.get(lora_name)
         if lora is None:
             lora_path = folder_paths.get_full_path("loras", lora_name + ".safetensors")
             if lora_path is None:
                 raise FileNotFoundError("Lora not found", lora_name)
             print("Loading lora", lora_name, strength_model, strength_clip)
-            loaded_loras[lora_name] = lora = load_torch_file(lora_path, safe_load=True)
+            lora_cache[lora_name] = lora = load_torch_file(lora_path, safe_load=True)
 
         (m, c) = load_lora_for_models(
             model_with_loras, clip_with_loras, lora, strength_model, strength_clip
@@ -170,7 +171,7 @@ def restore_faces(
     class_def = NODE_CLASS_MAPPINGS["FaceDetailer"]
     obj = class_def()
     seed = random.randint(0, 0xFFFFFFFFFFFFFFFF)
-    (new_img, *_) = getattr(obj, class_def.FUNCTION)(
+    (decoded, *_) = getattr(obj, class_def.FUNCTION)(
         image=image,
         model=model,
         clip=clip,
@@ -203,7 +204,7 @@ def restore_faces(
         wildcard="",
         cycle=1,
     )
-    return new_img
+    return decoded
 
 
 def upscale(model, d, positive, negative, vae):
