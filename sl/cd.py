@@ -24,7 +24,6 @@ node_cache = {}
 async def run_validation(schema_def, request):
     data = await request.json()
     schema = schema_def()
-    print({"input_data": data})
     try:
         d = schema.dump(schema.load(data))
         if d["test"] is True:
@@ -35,6 +34,10 @@ async def run_validation(schema_def, request):
             None,
             web.json_response({"error": True, "message": err.messages}, status=400),
         )
+
+    d_copy = d.copy()
+    d_copy.pop("image", None)
+    print({"input": d_copy})
     return (d, None)
 
 
@@ -235,11 +238,11 @@ def upscale(model, d, positive, negative, vae):
         tile_height=512,
         mask_blur=8,
         tile_padding=32,
-        seam_fix_mode="None",
-        seam_fix_denoise=0.0,
-        seam_fix_mask_blur=0.0,
-        seam_fix_width=0,
-        seam_fix_padding=0,
+        seam_fix_mode="Band Pass",
+        seam_fix_denoise=1.0,
+        seam_fix_mask_blur=8.0,
+        seam_fix_width=64,
+        seam_fix_padding=16,
         force_uniform_tiles=False,
         tiled_decode=False,
     )
