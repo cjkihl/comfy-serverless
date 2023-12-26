@@ -69,6 +69,7 @@ def load_loras(names: List[str] | None, model: ModelPatcher | None, clip: CLIP |
         lora_name = parts[0]
         strength_model = 1.0 if len(parts) < 2 else float(parts[1])
         strength_clip = 1.0 if len(parts) < 3 else float(parts[2])
+        print("Applying lora", lora_name, strength_model, strength_clip)
         lora = loaded_loras.get(lora_name)
         if lora is None:
             lora_path = folder_paths.get_full_path("loras", lora_name + ".safetensors")

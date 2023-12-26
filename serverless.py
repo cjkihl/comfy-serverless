@@ -88,8 +88,9 @@ async def text2img(request):
         images = save_images(decoded)
     end_time = time.time()
 
-    r = {"time": end_time - start_time, "images": images, "info": d, "seeds": seeds}
+    r = {"time": end_time - start_time, "info": d, "seeds": seeds}
     print(r)
+    r["images"] = images
     return web.json_response(r)
 
 
@@ -128,8 +129,9 @@ async def img2img(request):
 
     end_time = time.time()
 
-    r = {"time": end_time - start_time, "images": images, "info": d, "seeds": seeds}
+    r = {"time": end_time - start_time, "info": d, "seeds": seeds}
     print(r)
+    r["images"] = images
     return web.json_response(r)
 
 
