@@ -31,8 +31,7 @@ class CLIPTextEncodeLoras:
     def encode(self, model, clip, text):
         loras, text = self.extract_loras(text)
         if loras:
-            clip, _ = self.load_loras(loras, model, clip)
-
+            model, clip = self.load_loras(loras, model, clip)
         tokens = clip.tokenize(text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         return ([[cond, {"pooled_output": pooled}]],)
