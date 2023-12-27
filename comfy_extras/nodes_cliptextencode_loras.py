@@ -34,7 +34,7 @@ class CLIPTextEncodeLoras:
             model, clip = self.load_loras(loras, model, clip)
         tokens = clip.tokenize(text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled}]],)
+        return ([[cond, {"pooled_output": pooled}]], model, clip)
 
     def extract_loras(self, input_str: str):
         "Extract loras from input string and returns an array of loars and a cleaned prompt"
