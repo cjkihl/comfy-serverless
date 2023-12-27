@@ -108,12 +108,17 @@ def load_upscaler():
     return (upscale_model,)
 
 
-def encode_clip(clip: CLIP, text: str):
-    print("Encoding CLIP", text)
-    tokens = clip.tokenize(text)
-    cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+def encode_clip(model: ModelPatcher | None, clip: CLIP | None, text: str):
+    class_def = NODE_CLASS_MAPPINGS["CLIPTextEncodeLoras"]
+    obj = class_def()
+    print("Encoding CLIP with Loras", text)
+    (cond, *_) = getattr(obj, class_def.FUNCTION)(model, clip, text)
     print("CLIP Encoded")
-    return [[cond, {"pooled_output": pooled}]]
+    return cond
+    # tokens = clip.tokenize(text)
+    # cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+    #  return [[cond, {"pooled_output": pooled}]]
+
     # if clip_encoder is None:
     #     clip_encoder = CLIPTextEncode()
     # (cond,) = clip_encoder.encode(clip, text)
