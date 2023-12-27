@@ -28,10 +28,10 @@ class CLIPTextEncodeLoras:
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip, text):
+    def encode(self, model, clip, text):
         loras, text = self.extract_loras(text)
         if loras:
-            clip, _ = self.load_loras(loras, clip, None)
+            clip, _ = self.load_loras(loras, model, clip)
 
         tokens = clip.tokenize(text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
