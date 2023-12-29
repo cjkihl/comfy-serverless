@@ -273,7 +273,8 @@ parser.add_argument(
     help="Disable saving prompt metadata in files.",
 )
 
-args = parser.parse_args()
+
+args = parser.parse_args({})
 
 if args.windows_standalone_build:
     args.auto_launch = True

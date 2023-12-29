@@ -1,0 +1,41 @@
+{
+  "prompt": {
+    "4": {
+      "inputs": {
+        "ckpt_name": "majicmixRealistic_v7.safetensors"
+      },
+      "class_type": "CheckpointLoaderSimple"
+    },
+    "23": {
+      "inputs": {
+        "image": "LogoSM.png",
+        "upload": "image"
+      },
+      "class_type": "LoadImage"
+    },
+    "26": {
+      "inputs": {
+        "pixels": ["23", 0],
+        "vae": ["4", 2]
+      },
+      "class_type": "VAEEncode"
+    },
+    "27": {
+      "inputs": {
+        "upscale_method": "nearest-exact",
+        "scale_by": 1.5,
+        "samples": ["26", 0]
+      },
+      "class_type": "LatentUpscaleBy"
+    },
+    "28": {
+      "inputs": {
+        "filename_prefix": "latents/ComfyUI",
+        "samples": ["27", 0]
+      },
+      "class_type": "SaveLatent"
+    }
+  },
+  "client_id": "123",
+  "output": "28"
+}

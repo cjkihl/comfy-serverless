@@ -1,3 +1,4 @@
+import asyncio
 import time
 from aiohttp import web
 from marshmallow import Schema, fields, validate
@@ -6,6 +7,7 @@ from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 from comfy.cli_args import args
 
 from server import PromptServer
+from sl.async_execute import recursive_execute_async
 
 
 class DummyPromptServer:
@@ -28,6 +30,7 @@ from nodes import (
 from sl import stats
 from sl.cd import (
     encode_clip,
+    encode_clip_with_loras,
     load_loras,
     load_model,
     restore_faces,
@@ -43,6 +46,82 @@ routes = web.RouteTableDef()
 @routes.get("/")
 async def status(_):
     return web.json_response(stats.get_stats())
+
+
+async def async_generator_handler():
+    for i in range(5):
+        output = f"Generated async token output {i}"
+        yield output
+        await asyncio.sleep(1)
+
+
+@routes.get("/test")
+async def test(request):
+    response = web.StreamResponse()
+    # Prepare the response headers
+    response.headers["Content-Type"] = "text/plain"
+    await response.prepare(request)
+
+    # Use the async_generator_handler to stream the result
+    async for data in async_generator_handler():
+        await response.write(data.encode("utf-8"))
+
+    # Indicate that the body is complete
+    await response.write_eof()
+    return response
+
+
+class ExecuteSchema(Schema):
+    prompt = fields.Dict(required=True)
+    client_id = fields.Str(required=True)
+    output = fields.Str(required=True)
+    test = fields.Bool(dump_default=False)
+
+
+object_storage = {}
+
+
+@routes.post("/v1/execute")
+async def execute(request):
+    (d, r) = await run_validation(ExecuteSchema, request)
+    if r is not None:
+        return r
+
+    response = web.StreamResponse()
+    response.enable_chunked_encoding()
+    # Prepare the response headers
+    response.headers["Content-Type"] = "text/plain"
+
+    await response.prepare(request)
+
+    executed = set()
+    outputs = {}
+    outputs_ui = {}
+
+    async def callback(event, data, sid=None):
+        # Write to the stream
+        message = f"Event: {event}, Data: {data}, SID: {sid}\n"
+        print(message)
+        await response.write(message.encode(data))
+        await response.drain()
+
+    client_id = d["client_id"]
+
+    await recursive_execute_async(
+        callback,
+        prompt=d["prompt"],
+        outputs=outputs,
+        current_item=d["output"],
+        extra_data={"client_id": client_id},
+        executed=executed,
+        prompt_id=0,
+        outputs_ui=outputs_ui,
+        object_storage=globals()["object_storage"],
+    )
+
+    # Indicate that the body is complete
+    await response.write_eof()
+    return response
 
 
 class GenerateSchema(Schema):
@@ -64,21 +143,27 @@ class GenerateSchema(Schema):
     loras = fields.List(fields.Str(), dump_default=[])
 
 
-def face_restoration_pass(image, model, clip, vae, d, negative):
+def generate_pass(model, clip, vae, d):
+    negative = encode_clip(clip, d["negative_prompt"])
+    (positive, model, clip) = encode_clip_with_loras(model, clip, d["prompt"])
+    (decoded, seeds) = sample(model, d, positive, negative, vae)
+    return (decoded, seeds)
+
+
+def face_restoration_pass(image, model, clip, vae, d):
     print("Restoring faces")
-    model_with_face_loras, clip_with_face_loras = load_loras(
-        d["face_loras"], model, clip
-    )
-    face_positive = encode_clip(
-        clip_with_face_loras,
+    negative = encode_clip(clip, d["face_neg_prompt"])
+    positive = encode_clip_with_loras(
+        model,
+        clip,
         d["face_prompt"],
     )
     return restore_faces(
         image,
-        model_with_face_loras,
-        clip_with_face_loras,
+        model,
+        clip,
         vae,
-        face_positive,
+        positive,
         negative,
     )
 
@@ -93,14 +178,10 @@ async def text2img(request):
 
     with torch.inference_mode():
         model, clip, vae = load_model()
-        model_with_loras, clip_with_loras = load_loras(d["loras"], model, clip)
-        negative = encode_clip(clip, d["negative_prompt"])
-        positive = encode_clip(clip_with_loras, d["prompt"])
-        (decoded, seeds) = sample(model_with_loras, d, positive, negative, vae)
-
+        (decoded, seeds) = generate_pass(model, clip, vae, d)
         # If we have a separate face prompt, run a second pass to restore faces
         if "face_prompt" in d:
-            decoded = face_restoration_pass(decoded, model, clip, vae, d, negative)
+            decoded = face_restoration_pass(decoded, model, clip, vae, d)
         images = save_images(decoded)
 
     end_time = time.time()
@@ -139,8 +220,8 @@ async def img2img(request):
     with torch.inference_mode():
         (model, clip, vae) = load_model()
         model, clip = load_loras(d["loras"], model, clip)
-        negative = encode_clip(clip, d["negative_prompt"])
-        positive = encode_clip(clip, d["prompt"])
+        negative = encode_clip_with_loras(model, clip, d["negative_prompt"])
+        positive = encode_clip_with_loras(model, clip, d["prompt"])
         (upscaled, seeds) = upscale(model, d, positive, negative, vae)
         images = save_images(upscaled)
 
