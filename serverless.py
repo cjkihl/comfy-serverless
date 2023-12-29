@@ -1,3 +1,7 @@
+import comfy.options
+
+comfy.options.enable_args_parsing()
+
 import asyncio
 import time
 from aiohttp import web

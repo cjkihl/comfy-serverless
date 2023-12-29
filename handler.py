@@ -1,3 +1,7 @@
+from comfy.options import enable_args_parsing
+
+enable_args_parsing(False)
+
 from aiohttp import web
 from marshmallow import Schema, fields
 from server import PromptServer
