@@ -106,7 +106,7 @@ async def execute(request):
 
     async def callback(data: dict):
         print(data)
-        data_str = json.dumps(data)
+        data_str = json.dumps(data) + "\n"
         await response.write(data_str.encode("utf-8"))
 
     client_id = d["client_id"]
