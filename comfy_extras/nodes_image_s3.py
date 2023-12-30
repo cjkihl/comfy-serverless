@@ -6,7 +6,6 @@ import boto3
 from PIL import Image, ImageOps
 import numpy as np
 import torch
-import folder_paths
 
 
 def create_image_id():
@@ -17,10 +16,7 @@ def create_image_id():
 
 class SaveImageS3:
     def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
-        self.prefix_append = ""
-        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
