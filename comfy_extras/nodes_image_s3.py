@@ -1,3 +1,4 @@
+import base64
 import io
 from datetime import datetime
 import os
@@ -35,6 +36,15 @@ class SaveImageS3:
 
     CATEGORY = "image"
 
+    def create_lqip(self, image: Image):
+        i = image.resize((16, 16), Image.BICUBIC)
+        buffer = io.BytesIO()
+        i.save(buffer, format="PNG")
+        img_bytes = buffer.getvalue()
+        img_base64 = base64.b64encode(img_bytes)
+        img_str = img_base64.decode("utf-8")
+        return f"data:image/png;base64,{img_str}"
+
     def save_images(self, images, bucket, prefix="small"):
         s3 = boto3.client(
             service_name="s3",
@@ -55,9 +65,16 @@ class SaveImageS3:
 
             # Upload image to S3 bucket
             s3.put_object(Bucket=bucket, Key=key, Body=img_byte_arr)
-            results.append(key)
+            results.append(
+                {
+                    "key": key,
+                    "image_id": image_id,
+                    "prefix": prefix,
+                    "lqip": self.create_lqip(img),
+                }
+            )
 
-        return {"ui": {"text": results}}
+        return {"ui": {"result": results}}
 
 
 class LoadImageS3:
