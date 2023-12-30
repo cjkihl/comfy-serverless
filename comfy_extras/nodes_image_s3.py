@@ -2,7 +2,7 @@ import base64
 import io
 from datetime import datetime
 import os
-import uuid
+import cuid
 import boto3
 from PIL import Image, ImageOps
 import numpy as np
@@ -11,7 +11,7 @@ import torch
 
 def create_image_id():
     date_string = datetime.now().strftime("%Y%m%d%H%M%S")
-    unique_id = str(uuid.uuid4())
+    unique_id = str(cuid.cuid())
     return f"{date_string}-{unique_id}"
 
 
