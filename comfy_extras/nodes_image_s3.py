@@ -23,8 +23,8 @@ class SaveImageS3:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "bucket": ("STRING",),
-                "prefix": ("STRING", {"default": "ComfyUI"}),
+                "bucket": ("STRING", {"default": "bucket-name"}),
+                "prefix": ("STRING", {"default": "small"}),
             },
         }
 
@@ -64,7 +64,12 @@ class SaveImageS3:
 class LoadImageS3:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"bucket": ("STRING",), "key": ("STRING",)}}
+        return {
+            "required": {
+                "bucket": ("STRING", {"default": "bucket-name"}),
+                "key": ("STRING", {"default": "key"}),
+            }
+        }
 
     CATEGORY = "image"
 
