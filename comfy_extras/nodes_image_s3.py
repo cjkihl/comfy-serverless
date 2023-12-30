@@ -57,7 +57,7 @@ class SaveImageS3:
             s3.put_object(Bucket=bucket, Key=key, Body=img_byte_arr)
             results.append(key)
 
-        return {"ui": {"text": ",".join(results)}}
+        return {"ui": {"text": results}}
 
 
 class LoadImageS3:
