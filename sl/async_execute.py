@@ -6,7 +6,7 @@ from execution import format_value, full_type_name, get_input_data, get_output_d
 from nodes import NODE_CLASS_MAPPINGS
 
 
-async def recursive_execute_async(
+async def cd_recursive_execute_async(
     callback,
     prompt,
     outputs,
@@ -30,7 +30,7 @@ async def recursive_execute_async(
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             if input_unique_id not in outputs:
-                result = await recursive_execute_async(
+                result = await cd_recursive_execute_async(
                     callback,
                     prompt,
                     outputs,

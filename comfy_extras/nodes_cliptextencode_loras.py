@@ -86,5 +86,9 @@ class CLIPTextEncodeLoras:
 
 
 NODE_CLASS_MAPPINGS = {
-    "CLIP Text Encode With Loras": CLIPTextEncodeLoras,
+    "CLIPTextEncodeWithLoras": CLIPTextEncodeLoras,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "CLIPTextEncodeWithLoras": "CLIP Text Encode with Loras",
 }

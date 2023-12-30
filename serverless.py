@@ -1,3 +1,4 @@
+import json
 import comfy.options
 
 comfy.options.enable_args_parsing()
@@ -11,7 +12,19 @@ from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 from comfy.cli_args import args
 
 from server import PromptServer
-from sl.async_execute import recursive_execute_async
+from sl.async_execute import cd_recursive_execute_async
+from sl import stats
+from sl.cd import (
+    encode_clip,
+    encode_clip_with_loras,
+    load_loras,
+    load_model,
+    restore_faces,
+    sample,
+    save_images,
+    upscale,
+    run_validation,
+)
 
 
 class DummyPromptServer:
@@ -31,18 +44,7 @@ PromptServer.instance = DummyPromptServer()
 from nodes import (
     init_custom_nodes,
 )
-from sl import stats
-from sl.cd import (
-    encode_clip,
-    encode_clip_with_loras,
-    load_loras,
-    load_model,
-    restore_faces,
-    sample,
-    save_images,
-    upscale,
-    run_validation,
-)
+
 
 routes = web.RouteTableDef()
 
@@ -102,16 +104,14 @@ async def execute(request):
     outputs = {}
     outputs_ui = {}
 
-    async def callback(event, data, sid=None):
-        # Write to the stream
-        message = f"Event: {event}, Data: {data}, SID: {sid}\n"
-        print(message)
-        await response.write(message.encode(data))
-        await response.drain()
+    async def callback(data: dict):
+        print(data)
+        data_str = json.dumps(data)
+        await response.write(data_str.encode("utf-8"))
 
     client_id = d["client_id"]
 
-    await recursive_execute_async(
+    await cd_recursive_execute_async(
         callback,
         prompt=d["prompt"],
         outputs=outputs,

@@ -12,3 +12,4 @@ tqdm
 psutil
 marshmallow
 runpod
+boto3
