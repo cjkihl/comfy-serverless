@@ -56,7 +56,6 @@ class SaveImageS3:
             # Upload image to S3 bucket
             s3.put_object(Bucket=bucket, Key=key, Body=img_byte_arr)
             results.append({"key": key, "type": self.type})
-            counter += 1
 
         return {"ui": {"images": results}}
 
