@@ -39,7 +39,7 @@ class SaveImageS3:
     def create_lqip(self, image: Image):
         i = image.resize((16, 16), Image.BICUBIC)
         buffer = io.BytesIO()
-        i.save(buffer, format="WEBP")
+        i.save(buffer, format="WEBP", quality=20)
         img_bytes = buffer.getvalue()
         img_base64 = base64.b64encode(img_bytes)
         return img_base64.decode("utf-8")
