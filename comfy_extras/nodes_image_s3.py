@@ -74,7 +74,7 @@ class SaveImageS3:
                 }
             )
 
-        return {"ui": {"result": results}}
+        return {"ui": {"images": results}}
 
 
 class LoadImageS3:
