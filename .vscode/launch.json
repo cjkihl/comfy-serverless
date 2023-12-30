@@ -29,11 +29,11 @@
       "justMyCode": true
     },
     {
-      "name": "Python: Remote Attach",
+      "name": "Python: RA Runpod",
       "type": "python",
       "request": "attach",
       "connect": {
-        "host": "localhost",
+        "host": "kdfss7d6v5221t-4000.proxy.runpod.net",
         "port": 5678
       },
       "pathMappings": [

@@ -111,17 +111,18 @@ async def execute(request):
 
     client_id = d["client_id"]
 
-    await cd_recursive_execute_async(
-        callback,
-        prompt=d["prompt"],
-        outputs=outputs,
-        current_item=d["output"],
-        extra_data={"client_id": client_id},
-        executed=executed,
-        prompt_id=0,
-        outputs_ui=outputs_ui,
-        object_storage=globals()["object_storage"],
-    )
+    with torch.inference_mode():
+        await cd_recursive_execute_async(
+            callback,
+            prompt=d["prompt"],
+            outputs=outputs,
+            current_item=d["output"],
+            extra_data={"client_id": client_id},
+            executed=executed,
+            prompt_id=0,
+            outputs_ui=outputs_ui,
+            object_storage=globals()["object_storage"],
+        )
 
     # Indicate that the body is complete
     await response.write_eof()
