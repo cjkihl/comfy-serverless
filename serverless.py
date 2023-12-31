@@ -2,7 +2,6 @@ import json
 import comfy.options
 
 comfy.options.enable_args_parsing()
-
 import asyncio
 import time
 from aiohttp import web
@@ -10,6 +9,7 @@ from marshmallow import Schema, fields, validate
 import torch
 from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 from comfy.cli_args import args
+from comfy.model_management import cleanup_models
 
 from server import PromptServer
 from sl.async_execute import cd_recursive_execute_async
@@ -112,6 +112,7 @@ async def execute(request):
     client_id = d["client_id"]
 
     with torch.inference_mode():
+        cleanup_models()
         await cd_recursive_execute_async(
             callback,
             prompt=d["prompt"],
