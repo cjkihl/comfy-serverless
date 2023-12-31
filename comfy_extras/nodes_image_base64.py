@@ -47,7 +47,7 @@ class LoadImageBase64:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": ("STRING", {"default": ""}),
+                "image_base64": ("STRING", {"default": ""}),
             }
         }
 
