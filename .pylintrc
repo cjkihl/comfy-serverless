@@ -1,0 +1,5 @@
+[MASTER]
+ignore=comfy,comfy_extras,custom_nodes,input,models,notebooks,output,script_examples,tests,tests-ui,web
+
+[MESSAGES CONTROL]
+disable=C0114,C0116,C0413,C0115,E1128

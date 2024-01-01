@@ -1869,6 +1869,9 @@ def init_custom_nodes():
         "nodes_video_model.py",
         "nodes_sag.py",
         "nodes_perpneg.py",
+        "nodes_cliptextencode_loras.py",
+        "nodes_image_s3.py",
+        "nodes_image_base64.py",
     ]
 
     for node_file in extras_files:

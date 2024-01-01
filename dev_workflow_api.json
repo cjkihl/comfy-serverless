@@ -1,0 +1,86 @@
+{
+  "4": {
+    "inputs": {
+      "ckpt_name": "majicmixRealistic_v7.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "16": {
+    "inputs": {
+      "width": 16,
+      "height": 16,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage"
+  },
+  "18": {
+    "inputs": {
+      "text": "2 girls, (18yr 18 year old), teen, cute, large breasts, slim, (pink hair), naked, pussy, vagina, breasts, nipples, wearing wetsuit, beach in the background, (high sharpness, sharp, insanely detailed), NSFW, (embedding:p-bound-missionary), \" missionary, sex ,fucking, (penis in pussy, penis in vagina)\", sunset, red dramatic light, beautiful red sky, <lora:add_detail:0.9:1.0>",
+      "clip": [
+        "4",
+        1
+      ],
+      "model": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "CLIP Text Encode With Loras"
+  },
+  "19": {
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "positive": [
+        "18",
+        0
+      ],
+      "negative": [
+        "20",
+        0
+      ],
+      "latent_image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "KSampler"
+  },
+  "20": {
+    "inputs": {
+      "text": "bad hands",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "21": {
+    "inputs": {
+      "samples": [
+        "19",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "22": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "SaveImage"
+  }
+}
