@@ -39,6 +39,8 @@ from nodes import (
     init_custom_nodes,
 )
 
+object_storage = {}
+
 routes = web.RouteTableDef()
 
 
