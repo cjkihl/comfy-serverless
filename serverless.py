@@ -56,6 +56,9 @@ class ExecuteSchema(Schema):
     test = fields.Bool(dump_default=False)
 
 
+messageList = []
+
+
 @routes.post("/v1/execute")
 async def execute(request):
     (d, r) = await run_validation(ExecuteSchema, request)
@@ -80,23 +83,23 @@ async def execute(request):
         data_str = json.dumps(data) + "\n"
         await response.write(data_str.encode("utf-8"))
 
-    def hook(value, total, preview_image):
-        throw_exception_if_processing_interrupted()
-        print(f"Progress Hook: {value}/{total}")
-        asyncio.create_task(
-            callback(
-                {
-                    "status": "loading",
-                    "type": "ksampler",
-                    "value": value,
-                    "total": total,
-                }
-            )
-        )
-        # if preview_image is not None:
-        #     pass
+    # def hook(value, total, preview_image):
+    #     throw_exception_if_processing_interrupted()
+    #     print(f"Progress Hook: {value}/{total}")
+    #     asyncio.create_task(
+    #         callback(
+    #             {
+    #                 "status": "loading",
+    #                 "type": "ksampler",
+    #                 "value": value,
+    #                 "total": total,
+    #             }
+    #         )
+    #     )
+    #     # if preview_image is not None:
+    #     #     pass
 
-    set_progress_bar_global_hook(hook)
+    # set_progress_bar_global_hook(hook)
 
     client_id = d["client_id"]
     try:
