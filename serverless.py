@@ -112,23 +112,30 @@ async def execute(request):
         await response.write(data_str.encode("utf-8"))
 
     client_id = d["client_id"]
-
-    with torch.inference_mode():
-        cleanup_models()
-        await cd_recursive_execute_async(
-            callback,
-            prompt=d["prompt"],
-            outputs=outputs,
-            current_item=d["output"],
-            extra_data={"client_id": client_id},
-            executed=executed,
-            prompt_id=0,
-            outputs_ui=outputs_ui,
-            object_storage=globals()["object_storage"],
-        )
-
-    print("Done executing")
-    await response.write_eof()
+    try:
+        with torch.inference_mode():
+            cleanup_models()
+            await cd_recursive_execute_async(
+                callback,
+                prompt=d["prompt"],
+                outputs=outputs,
+                current_item=d["output"],
+                extra_data={"client_id": client_id},
+                executed=executed,
+                prompt_id=0,
+                outputs_ui=outputs_ui,
+                object_storage=globals()["object_storage"],
+            )
+        print("Done executing")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Handle the error as needed...
+    finally:
+        try:
+            await response.write_eof()
+        except Exception as e:
+            # Handle the error...
+            print(f"Error when closing response: {e}")
     return response
 
 
