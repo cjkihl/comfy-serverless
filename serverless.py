@@ -93,6 +93,8 @@ async def execute(request):
     if r is not None:
         return r
 
+    print("Executing request", d["client_id"])
+
     response = web.StreamResponse()
     response.enable_chunked_encoding()
     # Prepare the response headers
@@ -125,7 +127,7 @@ async def execute(request):
             object_storage=globals()["object_storage"],
         )
 
-    # Indicate that the body is complete
+    print("Done executing")
     await response.write_eof()
     return response
 
@@ -268,7 +270,7 @@ def main():
 
     app.add_routes(routes)
     app.middlewares.append(create_cors_middleware("*"))
-    web.run_app(app, host=args.listen, port=args.port, keepalive_timeout=600)
+    web.run_app(app, host=args.listen, port=args.port, keepalive_timeout=60)
 
 
 if __name__ == "__main__":
