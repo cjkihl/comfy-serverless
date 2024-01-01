@@ -1,28 +1,22 @@
+import asyncio
 import json
 import comfy.options
+from comfy.utils import set_progress_bar_global_hook
 
 comfy.options.enable_args_parsing()
-import asyncio
-import time
 from aiohttp import web
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields
 import torch
-from comfy.samplers import SAMPLER_NAMES, SCHEDULER_NAMES
 from comfy.cli_args import args
-from comfy.model_management import cleanup_models
+from comfy.model_management import (
+    cleanup_models,
+    throw_exception_if_processing_interrupted,
+)
 
 from server import PromptServer
 from sl.async_execute import cd_recursive_execute_async
 from sl import stats
 from sl.cd import (
-    encode_clip,
-    encode_clip_with_loras,
-    load_loras,
-    load_model,
-    restore_faces,
-    sample,
-    save_images,
-    upscale,
     run_validation,
 )
 
@@ -45,7 +39,6 @@ from nodes import (
     init_custom_nodes,
 )
 
-
 routes = web.RouteTableDef()
 
 
@@ -54,37 +47,11 @@ async def status(_):
     return web.json_response(stats.get_stats())
 
 
-async def async_generator_handler():
-    for i in range(5):
-        output = f"Generated async token output {i}"
-        yield output
-        await asyncio.sleep(1)
-
-
-@routes.get("/test")
-async def test(request):
-    response = web.StreamResponse()
-    # Prepare the response headers
-    response.headers["Content-Type"] = "text/plain"
-    await response.prepare(request)
-
-    # Use the async_generator_handler to stream the result
-    async for data in async_generator_handler():
-        await response.write(data.encode("utf-8"))
-
-    # Indicate that the body is complete
-    await response.write_eof()
-    return response
-
-
 class ExecuteSchema(Schema):
     prompt = fields.Dict(required=True)
     client_id = fields.Str(required=True)
     output = fields.Str(required=True)
     test = fields.Bool(dump_default=False)
-
-
-object_storage = {}
 
 
 @routes.post("/v1/execute")
@@ -110,6 +77,24 @@ async def execute(request):
         print(data)
         data_str = json.dumps(data) + "\n"
         await response.write(data_str.encode("utf-8"))
+
+    def hook(value, total, preview_image):
+        throw_exception_if_processing_interrupted()
+        print(f"Progress Hook: {value}/{total}")
+        asyncio.create_task(
+            callback(
+                {
+                    "status": "loading",
+                    "type": "ksampler",
+                    "value": value,
+                    "total": total,
+                }
+            )
+        )
+        # if preview_image is not None:
+        #     pass
+
+    set_progress_bar_global_hook(hook)
 
     client_id = d["client_id"]
     try:
@@ -137,117 +122,6 @@ async def execute(request):
             # Handle the error...
             print(f"Error when closing response: {e}")
     return response
-
-
-class GenerateSchema(Schema):
-    seed = fields.Int(dump_default=-1)
-    steps = fields.Int(dump_default=20)
-    cfg_scale = fields.Float(dump_default=7)
-    width = fields.Int(dump_default=512)
-    height = fields.Int(dump_default=512)
-    face_prompt = fields.Str()
-    face_loras = fields.List(fields.Str(), dump_default=[])
-    negative_prompt = fields.Str(required=True)
-    prompt = fields.Str(required=True)
-    batch_size = fields.Int(dump_default=1)
-    sampler = fields.Str(dump_default="euler", validate=validate.OneOf(SAMPLER_NAMES))
-    scheduler = fields.Str(
-        dump_default="normal", validate=validate.OneOf(SCHEDULER_NAMES)
-    )
-    test = fields.Bool(dump_default=False)
-    loras = fields.List(fields.Str(), dump_default=[])
-
-
-def generate_pass(model, clip, vae, d):
-    negative = encode_clip(clip, d["negative_prompt"])
-    (positive, model, clip) = encode_clip_with_loras(model, clip, d["prompt"])
-    (decoded, seeds) = sample(model, d, positive, negative, vae)
-    return (decoded, seeds)
-
-
-def face_restoration_pass(image, model, clip, vae, d):
-    print("Restoring faces")
-    negative = encode_clip(clip, d["face_neg_prompt"])
-    positive = encode_clip_with_loras(
-        model,
-        clip,
-        d["face_prompt"],
-    )
-    return restore_faces(
-        image,
-        model,
-        clip,
-        vae,
-        positive,
-        negative,
-    )
-
-
-@routes.post("/v1/generate")
-async def text2img(request):
-    start_time = time.time()
-
-    (d, r) = await run_validation(GenerateSchema, request)
-    if r is not None:
-        return r
-
-    with torch.inference_mode():
-        model, clip, vae = load_model()
-        (decoded, seeds) = generate_pass(model, clip, vae, d)
-        # If we have a separate face prompt, run a second pass to restore faces
-        if "face_prompt" in d:
-            decoded = face_restoration_pass(decoded, model, clip, vae, d)
-        images = save_images(decoded)
-
-    end_time = time.time()
-
-    r = {"time": end_time - start_time, "info": d, "seeds": seeds}
-    print(r)
-    r["images"] = images
-    return web.json_response(r)
-
-
-class UpscaleSchema(Schema):
-    seed = fields.Int(dump_default=-1)
-    steps = fields.Int(dump_default=20)
-    cfg_scale = fields.Float()
-    upscale_by = fields.Int(dump_default=2)
-    restore_faces = fields.Bool(dump_default=False)
-    negative_prompt = fields.Str(required=True)
-    prompt = fields.Str(required=True)
-    sampler = fields.Str(dump_default="euler", validate=validate.OneOf(SAMPLER_NAMES))
-    scheduler = fields.Str(
-        dump_default="normal", validate=validate.OneOf(SCHEDULER_NAMES)
-    )
-    denoising_strength = fields.Float(dump_default=0.3)
-    image = fields.Str(required=True)
-    test = fields.Bool(dump_default=False)
-    loras = fields.List(fields.Str(), dump_default=[])
-
-
-@routes.post("/v1/upscale")
-async def img2img(request):
-    start_time = time.time()
-    (d, r) = await run_validation(UpscaleSchema, request)
-    if r is not None:
-        return r
-
-    with torch.inference_mode():
-        (model, clip, vae) = load_model()
-        model, clip = load_loras(d["loras"], model, clip)
-        negative = encode_clip_with_loras(model, clip, d["negative_prompt"])
-        positive = encode_clip_with_loras(model, clip, d["prompt"])
-        (upscaled, seeds) = upscale(model, d, positive, negative, vae)
-        images = save_images(upscaled)
-
-    end_time = time.time()
-
-    # remove image from d, we don't want it to bloat the output
-    d.pop("image", None)
-    r = {"time": end_time - start_time, "info": d, "seeds": seeds}
-    print(r)
-    r["images"] = images
-    return web.json_response(r)
 
 
 def create_cors_middleware(allowed_origin: str):
