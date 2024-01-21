@@ -41,33 +41,37 @@ schema = ExecuteSchema()
 
 
 def handler(job):
-    job_input = job["input"]
+    try:
+        job_input = job["input"]
 
-    executed = set()
-    outputs = {}
-    outputs_ui = {}
+        executed = set()
+        outputs = {}
+        outputs_ui = {}
 
-    print("Received request", job_input)
-    d = schema.dump(schema.load(job_input))
-    if d["test"] is True:
-        yield d
+        print("Received request", job_input)
+        d = schema.dump(schema.load(job_input))
+        if d["test"] is True:
+            yield d
 
-    print("Executing request", d["client_id"])
-    with torch.inference_mode():
-        cleanup_models()
-        for r in cd_recursive_execute_sync(
-            prompt=d["prompt"],
-            outputs=outputs,
-            current_item=d["output"],
-            extra_data={"client_id": d["client_id"]},
-            executed=executed,
-            prompt_id=0,
-            outputs_ui=outputs_ui,
-            object_storage=globals()["object_storage"],
-        ):
-            print("Yielding result", r)
-            yield r
-        print("Done executing")
+        print("Executing request", d["client_id"])
+        with torch.inference_mode():
+            cleanup_models()
+            for r in cd_recursive_execute_sync(
+                prompt=d["prompt"],
+                outputs=outputs,
+                current_item=d["output"],
+                extra_data={"client_id": d["client_id"]},
+                executed=executed,
+                prompt_id=0,
+                outputs_ui=outputs_ui,
+                object_storage=globals()["object_storage"],
+            ):
+                print("Yielding result", r)
+                yield r
+            print("Done executing")
+    except Exception as e:
+        print("Exception", e)
+        yield {"status": "error", "message": str(e)}
 
 
 # def test_handler(job):
