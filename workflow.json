@@ -8,7 +8,7 @@
     },
     "23": {
       "inputs": {
-        "image": "LogoSM.png",
+        "image": "example.png",
         "upload": "image"
       },
       "class_type": "LoadImage"

@@ -21,7 +21,7 @@ def cd_recursive_execute_sync(
     class_type = prompt[unique_id]["class_type"]
     class_def = NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
-        return (True, None, None)
+        return
 
     for x in inputs:
         input_data = inputs[x]
@@ -29,7 +29,7 @@ def cd_recursive_execute_sync(
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             if input_unique_id not in outputs:
-                for r in cd_recursive_execute_sync(
+                for result in cd_recursive_execute_sync(
                     prompt,
                     outputs,
                     input_unique_id,
@@ -39,7 +39,7 @@ def cd_recursive_execute_sync(
                     outputs_ui,
                     object_storage,
                 ):
-                    yield r
+                    yield result
 
     input_data_all = None
     try:
@@ -62,7 +62,7 @@ def cd_recursive_execute_sync(
                 "type": class_type,
                 "node_id": unique_id,
                 "output": output_ui,
-            },
+            }
 
     except InterruptProcessingException as iex:
         logging.info("Processing interrupted")
@@ -70,7 +70,7 @@ def cd_recursive_execute_sync(
         error_details = {
             "node_id": unique_id,
         }
-        raise iex
+        raise InterruptProcessingException(error_details) from iex
     except Exception as ex:
         typ, _, tb = sys.exc_info()
         exception_type = full_type_name(typ)
@@ -97,5 +97,6 @@ def cd_recursive_execute_sync(
             "current_inputs": input_data_formatted,
             "current_outputs": output_data_formatted,
         }
-        raise ex
+        raise Exception(error_details) from ex
     executed.add(unique_id)
+    return

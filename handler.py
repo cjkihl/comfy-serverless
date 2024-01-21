@@ -1,6 +1,9 @@
-from comfy.options import enable_args_parsing
+import torch
+from comfy.model_management import cleanup_models
+import comfy.options
+from sl.sync_execute import cd_recursive_execute_sync
 
-enable_args_parsing(False)
+comfy.options.enable_args_parsing(False)
 
 from aiohttp import web
 from marshmallow import Schema, fields
@@ -33,23 +36,41 @@ class ExecuteSchema(Schema):
 object_storage = {}
 schema = ExecuteSchema()
 
-# If your handler runs inference on a model, load the model here.
-# You will want models to be loaded into memory before starting serverless.
 
-
-async def generator_handler(job):
-    """Handler function that will be used to process jobs."""
+def handler(job):
     job_input = job["input"]
-
-    storage = globals()["object_storage"]
 
     executed = set()
     outputs = {}
     outputs_ui = {}
 
+    print("Received request", job_input)
     d = schema.dump(schema.load(job_input))
     if d["test"] is True:
         yield d
 
+    print("Executing request", d["client_id"])
+    with torch.inference_mode():
+        cleanup_models()
+        for r in cd_recursive_execute_sync(
+            prompt=d["prompt"],
+            outputs=outputs,
+            current_item=d["output"],
+            extra_data={"client_id": d["client_id"]},
+            executed=executed,
+            prompt_id=0,
+            outputs_ui=outputs_ui,
+            object_storage=globals()["object_storage"],
+        ):
+            print("Yielding result", r)
+            yield r
+        print("Done executing")
 
-runpod.serverless.start({"handler": generator_handler, "return_aggregate_stream": True})
+
+# def test_handler(job):
+#     for count in range(3):
+#         result = f"This is the {count} generated output."
+#         yield result
+
+
+runpod.serverless.start({"handler": handler, "return_aggregate_stream": True})
