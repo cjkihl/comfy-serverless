@@ -1,6 +1,7 @@
 import torch
 from comfy.model_management import cleanup_models
 import comfy.options
+from nodes import init_custom_nodes
 from sl.sync_execute import cd_recursive_execute_sync
 
 comfy.options.enable_args_parsing(False)
@@ -24,6 +25,8 @@ class DummyPromptServer:
 
 ## Mock PromptServer so custom nodes will not crash
 PromptServer.instance = DummyPromptServer()
+
+init_custom_nodes()
 
 
 class ExecuteSchema(Schema):
