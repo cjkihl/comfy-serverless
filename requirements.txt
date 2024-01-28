@@ -10,3 +10,7 @@ Pillow
 scipy
 tqdm
 psutil
+marshmallow
+runpod
+boto3
+cuid
