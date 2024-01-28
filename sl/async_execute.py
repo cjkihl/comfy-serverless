@@ -1,12 +1,12 @@
 import logging
 import sys
 import traceback
-from comfy.model_management import InterruptProcessingException
+import comfy.model_management
 from execution import format_value, full_type_name, get_input_data, get_output_data
-from nodes import NODE_CLASS_MAPPINGS
+import nodes
 
 
-async def cd_recursive_execute_async(
+async def recursive_execute(
     callback,
     prompt,
     outputs,
@@ -20,7 +20,7 @@ async def cd_recursive_execute_async(
     unique_id = current_item
     inputs = prompt[unique_id]["inputs"]
     class_type = prompt[unique_id]["class_type"]
-    class_def = NODE_CLASS_MAPPINGS[class_type]
+    class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
         return (True, None, None)
 
@@ -29,8 +29,9 @@ async def cd_recursive_execute_async(
 
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
+            output_index = input_data[1]
             if input_unique_id not in outputs:
-                result = await cd_recursive_execute_async(
+                result = await recursive_execute(
                     callback,
                     prompt,
                     outputs,
@@ -69,8 +70,7 @@ async def cd_recursive_execute_async(
                     "output": output_ui,
                 },
             )
-
-    except InterruptProcessingException as iex:
+    except comfy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs

@@ -11,8 +11,9 @@ from comfy.model_management import (
 )
 
 from server import PromptServer
-from sl.async_execute import cd_recursive_execute_async
+from sl.async_execute import recursive_execute
 from sl import stats
+
 
 class DummyPromptServer:
     client_id = None
@@ -54,7 +55,6 @@ messageList = []
 
 @routes.post("/v1/execute")
 async def execute(request):
-
     data = await request.json()
     schema = ExecuteSchema()
 
@@ -65,7 +65,7 @@ async def execute(request):
     except ValidationError as err:
         print(err.messages)
         return web.json_response({"error": True, "message": err.messages}, status=400)
-   
+
     print({"input": d})
     print("Executing request", d["client_id"])
 
@@ -107,7 +107,7 @@ async def execute(request):
     try:
         with torch.inference_mode():
             cleanup_models()
-            await cd_recursive_execute_async(
+            await recursive_execute(
                 callback,
                 prompt=d["prompt"],
                 outputs=outputs,
