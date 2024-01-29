@@ -16,6 +16,8 @@ def download_dir(prefix, local, bucket, client):
             kwargs.update({"ContinuationToken": next_token})
         results = client.list_objects_v2(**kwargs)
         contents = results.get("Contents")
+        if contents is None:
+            raise FileNotFoundError("Folder does not exist", prefix)
         for i in contents:
             k = i.get("Key")
             if k[-1] != "/":
@@ -48,7 +50,7 @@ s3 = boto3.client(
 )
 
 download_dir("1.5/vae/", "models/vae/", "stable-diffusion", s3)
-download_dir("1.5/checkpoints/", "models/checkpoints/", "stable-diffusion", s3)
+download_dir("1.5/models/", "models/checkpoints/", "stable-diffusion", s3)
 download_dir("1.5/embeddings/", "models/embeddings/", "stable-diffusion", s3)
 download_dir("1.5/lora/", "models/loras/", "stable-diffusion", s3)
 download_dir("1.5/upscale_models/", "models/upscale_models/", "stable-diffusion", s3)
