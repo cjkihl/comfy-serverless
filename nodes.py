@@ -1966,6 +1966,9 @@ def init_custom_nodes():
         "nodes_stable_cascade.py",
         "nodes_differential_diffusion.py",
         "nodes_ip2p.py",
+        "nodes_cliptextencode_loras.py",
+        "nodes_image_s3.py",
+        "nodes_image_base64.py"
     ]
 
     import_failed = []

@@ -11,3 +11,7 @@ scipy
 tqdm
 psutil
 kornia>=0.7.1
+marshmallow
+runpod
+boto3
+cuid
