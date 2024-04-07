@@ -1944,6 +1944,9 @@ def init_custom_nodes():
         "nodes_stable3d.py",
         "nodes_sdupscale.py",
         "nodes_photomaker.py",
+        "nodes_cliptextencode_loras.py",
+        "nodes_image_s3.py",
+        "nodes_image_base64.py",
     ]
 
     for node_file in extras_files:

@@ -1,0 +1,125 @@
+{
+  "prompt": {
+    "3": {
+      "inputs": {
+        "seed": 0,
+        "steps": 40,
+        "cfg": 7,
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": 1,
+        "model": ["63", 1],
+        "positive": ["63", 0],
+        "negative": ["7", 0],
+        "latent_image": ["5", 0]
+      },
+      "class_type": "KSampler"
+    },
+    "4": {
+      "inputs": { "ckpt_name": "epicrealism_pureEvolutionV5.safetensors" },
+      "class_type": "CheckpointLoaderSimple"
+    },
+    "5": {
+      "inputs": { "width": 512, "height": 512, "batch_size": 4 },
+      "class_type": "EmptyLatentImage"
+    },
+    "7": {
+      "inputs": {
+        "text": "embedding:p-ng_deepnegative_v1_75t, embedding:p-badhandv4, bikini",
+        "clip": ["4", 1]
+      },
+      "class_type": "CLIPTextEncode"
+    },
+    "8": {
+      "inputs": { "samples": ["3", 0], "vae": ["25", 0] },
+      "class_type": "VAEDecode"
+    },
+    "10": {
+      "inputs": { "model_name": "bbox/face_yolov8m.pt" },
+      "class_type": "UltralyticsDetectorProvider"
+    },
+    "12": {
+      "inputs": {
+        "guide_size": 256,
+        "guide_size_for": true,
+        "max_size": 512,
+        "seed": 0,
+        "steps": 30,
+        "cfg": 5,
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": 0.5,
+        "feather": 5,
+        "noise_mask": true,
+        "force_inpaint": true,
+        "bbox_threshold": 0.7000000000000001,
+        "bbox_dilation": 10,
+        "bbox_crop_factor": 3,
+        "sam_detection_hint": "center-1",
+        "sam_dilation": 0,
+        "sam_threshold": 0.93,
+        "sam_bbox_expansion": 0,
+        "sam_mask_hint_threshold": 0.7000000000000001,
+        "sam_mask_hint_use_negative": "False",
+        "drop_size": 10,
+        "wildcard": "",
+        "cycle": 1,
+        "image": ["8", 0],
+        "model": ["64", 1],
+        "clip": ["64", 2],
+        "vae": ["25", 0],
+        "positive": ["64", 0],
+        "negative": ["67", 0],
+        "bbox_detector": ["10", 0]
+      },
+      "class_type": "FaceDetailer"
+    },
+    "25": {
+      "inputs": { "vae_name": "vae-ft-mse-840000-ema-pruned.ckpt" },
+      "class_type": "VAELoader"
+    },
+    "63": {
+      "inputs": {
+        "text": "2 girls, filipina, (18yr 18 year old), teen, cute, large breasts, slim, naked, pussy, vagina, breasts, nipples, beach in the background, (high sharpness, sharp, insanely detailed), NSFW",
+        "model": ["free-u", 0],
+        "clip": ["4", 1]
+      },
+      "class_type": "CLIPTextEncodeWithLoras"
+    },
+    "64": {
+      "inputs": {
+        "text": "beutiful girl face, filipina, (18yr 18 year old), teen, (high sharpness, sharp, insanely detailed), (eye reflection), detailed face, detailed eyes and pupils",
+        "model": ["4", 0],
+        "clip": ["4", 1]
+      },
+      "class_type": "CLIPTextEncodeWithLoras"
+    },
+    "67": {
+      "inputs": {
+        "text": "embedding:p-ng_deepnegative_v1_75t, embedding:p-badhandv4, bikini",
+        "clip": ["4", 1]
+      },
+      "class_type": "CLIPTextEncode"
+    },
+    "69": {
+      "inputs": {
+        "bucket": "chain-dev",
+        "prefix": "small",
+        "images": ["12", 0]
+      },
+      "class_type": "SaveImageS3"
+    },
+    "free-u": {
+      "inputs": {
+        "b1": 1.3,
+        "b2": 1.4,
+        "s1": 0.9,
+        "s2": 0.2,
+        "model": ["4", 0]
+      },
+      "class_type": "FreeU_V2"
+    }
+  },
+  "client_id": "test-user",
+  "output": "69"
+}
