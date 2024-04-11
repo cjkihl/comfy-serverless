@@ -37,7 +37,8 @@ class SaveImageS3:
     CATEGORY = "image"
 
     def create_lqip(self, image: Image):
-        i = image.resize((16, 16), Image.BICUBIC)
+        aspect_ratio = image.width / image.height
+        i = image.resize((16, round(16 / aspect_ratio)), Image.BICUBIC)
         buffer = io.BytesIO()
         i.save(buffer, format="WEBP", quality=20)
         img_bytes = buffer.getvalue()
