@@ -7,6 +7,7 @@ import boto3
 from PIL import Image, ImageOps
 import numpy as np
 import torch
+import time
 
 
 def create_image_id():
@@ -53,24 +54,41 @@ class SaveImageS3:
         )
         results = []
         for image in images:
+            print("processing image")
             i = 255.0 * image.cpu().numpy()
+            print('numpy')
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            print('img')
             image_id = create_image_id()
+            print('id created')
             key = f"{prefix}/{image_id}"
 
             # Convert the image to bytes
             img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format="PNG")
-            img_byte_arr = img_byte_arr.getvalue()
+            print('img to bytes')
 
+            img.save(img_byte_arr, format="PNG")
+            print('img saved')
+            img_byte_arr = img_byte_arr.getvalue()
+            print('img to bytes 2')
+
+            start_time = time.time()
             # Upload image to S3 bucket
             s3.put_object(Bucket=bucket, Key=key, Body=img_byte_arr)
+            end_time = time.time()
+            print(f"Time taken to upload image: {end_time - start_time} seconds")
+
+            start_time = time.time()
+            lqip = self.create_lqip(img)
+            end_time = time.time()
+            print(f"Time taken to create lqip: {end_time - start_time} seconds")
+
             results.append(
                 {
                     "key": key,
                     "image_id": image_id,
                     "prefix": prefix,
-                    "lqip": self.create_lqip(img),
+                    "lqip": lqip,
                 }
             )
 

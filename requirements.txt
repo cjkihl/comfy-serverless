@@ -16,3 +16,4 @@ runpod
 boto3
 cuid
 insightface>=0.7.3
+python-dotenv
