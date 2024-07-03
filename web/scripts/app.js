@@ -13,39 +13,39 @@ export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview";
 
 function sanitizeNodeName(string) {
 	let entityMap = {
-	'&': '',
-	'<': '',
-	'>': '',
-	'"': '',
-	"'": '',
-	'`': '',
-	'=': ''
+		'&': '',
+		'<': '',
+		'>': '',
+		'"': '',
+		"'": '',
+		'`': '',
+		'=': ''
 	};
-	return String(string).replace(/[&<>"'`=]/g, function fromEntityMap (s) {
+	return String(string).replace(/[&<>"'`=]/g, function fromEntityMap(s) {
 		return entityMap[s];
 	});
 }
 
 /**
- * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
- */
+	* @typedef {import("types/comfy").ComfyExtension} ComfyExtension
+	*/
 
 export class ComfyApp {
 	/**
-	 * List of entries to queue
-	 * @type {{number: number, batchCount: number}[]}
-	 */
+		* List of entries to queue
+		* @type {{number: number, batchCount: number}[]}
+		*/
 	#queueItems = [];
 	/**
-	 * If the queue is currently being processed
-	 * @type {boolean}
-	 */
+		* If the queue is currently being processed
+		* @type {boolean}
+		*/
 	#processingQueue = false;
 
 	/**
-	 * Content Clipboard
-	 * @type {serialized node object}
-	 */
+		* Content Clipboard
+		* @type {serialized node object}
+		*/
 	static clipspace = null;
 	static clipspace_invalidate_handler = null;
 	static open_maskeditor = null;
@@ -58,13 +58,13 @@ export class ComfyApp {
 		this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
 		this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
 		this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
-		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });		  
+		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });
 		this.menu = new ComfyAppMenu(this);
 
 		/**
-		 * List of extensions that are registered with the app
-		 * @type {ComfyExtension[]}
-		 */
+			* List of extensions that are registered with the app
+			* @type {ComfyExtension[]}
+			*/
 		this.extensions = [];
 
 		/**
@@ -74,15 +74,15 @@ export class ComfyApp {
 		this._nodeOutputs = {};
 
 		/**
-		 * Stores the preview image data for each node
-		 * @type {Record<string, Image>}
-		 */
+			* Stores the preview image data for each node
+			* @type {Record<string, Image>}
+			*/
 		this.nodePreviewImages = {};
 
 		/**
-		 * If the shift key on the keyboard is pressed
-		 * @type {boolean}
-		 */
+			* If the shift key on the keyboard is pressed
+			* @type {boolean}
+			*/
 		this.shiftDown = false;
 	}
 
@@ -97,7 +97,7 @@ export class ComfyApp {
 
 	getPreviewFormatParam() {
 		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
-		if(preview_format)
+		if (preview_format)
 			return `&preview=${preview_format}`;
 		else
 			return "";
@@ -112,7 +112,7 @@ export class ComfyApp {
 	}
 
 	static onClipspaceEditorSave() {
-		if(ComfyApp.clipspace_return_node) {
+		if (ComfyApp.clipspace_return_node) {
 			ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
 		}
 	}
@@ -123,13 +123,13 @@ export class ComfyApp {
 
 	static copyToClipspace(node) {
 		var widgets = null;
-		if(node.widgets) {
+		if (node.widgets) {
 			widgets = node.widgets.map(({ type, name, value }) => ({ type, name, value }));
 		}
 
 		var imgs = undefined;
 		var orig_imgs = undefined;
-		if(node.imgs != undefined) {
+		if (node.imgs != undefined) {
 			imgs = [];
 			orig_imgs = [];
 
@@ -141,7 +141,7 @@ export class ComfyApp {
 		}
 
 		var selectedIndex = 0;
-		if(node.imageIndex) {
+		if (node.imageIndex) {
 			selectedIndex = node.imageIndex;
 		}
 
@@ -156,30 +156,30 @@ export class ComfyApp {
 
 		ComfyApp.clipspace_return_node = null;
 
-		if(ComfyApp.clipspace_invalidate_handler) {
+		if (ComfyApp.clipspace_invalidate_handler) {
 			ComfyApp.clipspace_invalidate_handler();
 		}
 	}
 
 	static pasteFromClipspace(node) {
-		if(ComfyApp.clipspace) {
+		if (ComfyApp.clipspace) {
 			// image paste
-			if(ComfyApp.clipspace.imgs && node.imgs) {
-				if(node.images && ComfyApp.clipspace.images) {
-					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+			if (ComfyApp.clipspace.imgs && node.imgs) {
+				if (node.images && ComfyApp.clipspace.images) {
+					if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
 						node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
 					}
 					else {
 						node.images = ComfyApp.clipspace.images;
 					}
 
-					if(app.nodeOutputs[node.id + ""])
+					if (app.nodeOutputs[node.id + ""])
 						app.nodeOutputs[node.id + ""].images = node.images;
 				}
 
-				if(ComfyApp.clipspace.imgs) {
+				if (ComfyApp.clipspace.imgs) {
 					// deep-copy to cut link with clipspace
-					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+					if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
 						const img = new Image();
 						img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
 						node.imgs = [img];
@@ -187,7 +187,7 @@ export class ComfyApp {
 					}
 					else {
 						const imgs = [];
-						for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+						for (let i = 0; i < ComfyApp.clipspace.imgs.length; i++) {
 							imgs[i] = new Image();
 							imgs[i].src = ComfyApp.clipspace.imgs[i].src;
 							node.imgs = imgs;
@@ -196,25 +196,25 @@ export class ComfyApp {
 				}
 			}
 
-			if(node.widgets) {
-				if(ComfyApp.clipspace.images) {
+			if (node.widgets) {
+				if (ComfyApp.clipspace.images) {
 					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 					const index = node.widgets.findIndex(obj => obj.name === 'image');
-					if(index >= 0) {
-						if(node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
-							node.widgets[index].value = (clip_image.subfolder?clip_image.subfolder+'/':'') + clip_image.filename + (clip_image.type?` [${clip_image.type}]`:'');
+					if (index >= 0) {
+						if (node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
+							node.widgets[index].value = (clip_image.subfolder ? clip_image.subfolder + '/' : '') + clip_image.filename + (clip_image.type ? ` [${clip_image.type}]` : '');
 						}
 						else {
 							node.widgets[index].value = clip_image;
 						}
 					}
 				}
-				if(ComfyApp.clipspace.widgets) {
+				if (ComfyApp.clipspace.widgets) {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
 						if (prop && prop.type != 'button') {
-							if(prop.type != 'image' && typeof prop.value == "string" && value.filename) {
-								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
+							if (prop.type != 'image' && typeof prop.value == "string" && value.filename) {
+								prop.value = (value.subfolder ? value.subfolder + '/' : '') + value.filename + (value.type ? ` [${value.type}]` : '');
 							}
 							else {
 								prop.value = value;
@@ -230,11 +230,11 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Invoke an extension callback
-	 * @param {keyof ComfyExtension} method The extension callback to execute
-	 * @param  {any[]} args Any arguments to pass to the callback
-	 * @returns
-	 */
+		* Invoke an extension callback
+		* @param {keyof ComfyExtension} method The extension callback to execute
+		* @param  {any[]} args Any arguments to pass to the callback
+		* @returns
+		*/
 	#invokeExtensions(method, ...args) {
 		let results = [];
 		for (const ext of this.extensions) {
@@ -255,12 +255,12 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Invoke an async extension callback
-	 * Each callback will be invoked concurrently
-	 * @param {string} method The extension callback to execute
-	 * @param  {...any} args Any arguments to pass to the callback
-	 * @returns
-	 */
+		* Invoke an async extension callback
+		* Each callback will be invoked concurrently
+		* @param {string} method The extension callback to execute
+		* @param  {...any} args Any arguments to pass to the callback
+		* @returns
+		*/
 	async #invokeExtensionsAsync(method, ...args) {
 		return await Promise.all(
 			this.extensions.map(async (ext) => {
@@ -279,11 +279,11 @@ export class ComfyApp {
 			})
 		);
 	}
-	
+
 	#addRestoreWorkflowView() {
 		const serialize = LGraph.prototype.serialize;
 		const self = this;
-		LGraph.prototype.serialize = function() {
+		LGraph.prototype.serialize = function () {
 			const workflow = serialize.apply(this, arguments);
 
 			// Store the drag & scale info in the serialized workflow if the setting is enabled
@@ -311,10 +311,10 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Adds special context menu handling for nodes
-	 * e.g. this adds Open Image functionality for nodes that show images
-	 * @param {*} node The node to add the menu handler
-	 */
+		* Adds special context menu handling for nodes
+		* e.g. this adds Open Image functionality for nodes that show images
+		* @param {*} node The node to add the menu handler
+		*/
 	#addNodeContextMenuHandler(node) {
 		function getCopyImageOption(img) {
 			if (typeof window.ClipboardItem === "undefined") return [];
@@ -402,7 +402,7 @@ export class ComfyApp {
 								window.open(url, "_blank");
 							},
 						},
-						...getCopyImageOption(img), 
+						...getCopyImageOption(img),
 						{
 							content: "Save Image",
 							callback: () => {
@@ -465,7 +465,7 @@ export class ComfyApp {
 		const app = this;
 		const origNodeOnKeyDown = node.prototype.onKeyDown;
 
-		node.prototype.onKeyDown = function(e) {
+		node.prototype.onKeyDown = function (e) {
 			if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
 				return false;
 			}
@@ -502,10 +502,10 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Adds Custom drawing logic for nodes
-	 * e.g. Draws images and handles thumbnail navigation on nodes that output images
-	 * @param {*} node The node to add the draw handler
-	 */
+		* Adds Custom drawing logic for nodes
+		* e.g. Draws images and handles thumbnail navigation on nodes that output images
+		* @param {*} node The node to add the draw handler
+		*/
 	#addDrawBackgroundHandler(node) {
 		const app = this;
 
@@ -520,7 +520,7 @@ export class ComfyApp {
 					if (w.computeSize) {
 						shiftY += w.computeSize()[1] + 4;
 					}
-					else if(w.computedHeight) {
+					else if (w.computedHeight) {
 						shiftY += w.computedHeight;
 					}
 					else {
@@ -534,7 +534,7 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function (force) {
-			if(!force && this.animatedImages) return;
+			if (!force && this.animatedImages) return;
 
 			if (this.inputHeight || this.freeWidgetSpace > 210) {
 				this.setSize(this.size);
@@ -561,8 +561,8 @@ export class ComfyApp {
 							output.images.map((params) => {
 								return api.apiURL(
 									"/view?" +
-										new URLSearchParams(params).toString() +
-										(this.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam()
+									new URLSearchParams(params).toString() +
+									(this.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam()
 								);
 							})
 						);
@@ -627,17 +627,17 @@ export class ComfyApp {
 						}
 					}
 
-					const cell_size = Math.min(w/columns, h/rows);
-					return {cell_size, columns, rows};
+					const cell_size = Math.min(w / columns, h / rows);
+					return { cell_size, columns, rows };
 				}
 
 				function is_all_same_aspect_ratio(imgs) {
 					// assume: imgs.length >= 2
-					let ratio = imgs[0].naturalWidth/imgs[0].naturalHeight;
+					let ratio = imgs[0].naturalWidth / imgs[0].naturalHeight;
 
-					for(let i=1; i<imgs.length; i++) {
-						let this_ratio = imgs[i].naturalWidth/imgs[i].naturalHeight;
-						if(ratio != this_ratio)
+					for (let i = 1; i < imgs.length; i++) {
+						let this_ratio = imgs[i].naturalWidth / imgs[i].naturalHeight;
+						if (ratio != this_ratio)
 							return false;
 					}
 
@@ -646,10 +646,10 @@ export class ComfyApp {
 
 				if (this.imgs?.length) {
 					const widgetIdx = this.widgets?.findIndex((w) => w.name === ANIM_PREVIEW_WIDGET);
-				
-					if(this.animatedImages) {
+
+					if (this.animatedImages) {
 						// Instead of using the canvas we'll use a IMG
-						if(widgetIdx > -1) {
+						if (widgetIdx > -1) {
 							// Replace content
 							const widget = this.widgets[widgetIdx];
 							widget.options.host.updateImages(this.imgs);
@@ -699,7 +699,7 @@ export class ComfyApp {
 						var cellWidth, cellHeight, shiftX, cell_padding, cols;
 
 						const compact_mode = is_all_same_aspect_ratio(this.imgs);
-						if(!compact_mode) {
+						if (!compact_mode) {
 							// use rectangle cell style and border line
 							cell_padding = 2;
 							const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
@@ -707,8 +707,8 @@ export class ComfyApp {
 
 							cellWidth = cell_size;
 							cellHeight = cell_size;
-							shiftX = (dw-cell_size*cols)/2;
-							shiftY = (dh-cell_size*rows)/2 + top;
+							shiftX = (dw - cell_size * cols) / 2;
+							shiftY = (dh - cell_size * rows) / 2 + top;
 						}
 						else {
 							cell_padding = 0;
@@ -747,21 +747,21 @@ export class ComfyApp {
 							}
 							this.imageRects.push([x, y, cellWidth, cellHeight]);
 
-							let wratio = cellWidth/img.width;
-							let hratio = cellHeight/img.height;
+							let wratio = cellWidth / img.width;
+							let hratio = cellHeight / img.height;
 							var ratio = Math.min(wratio, hratio);
 
 							let imgHeight = ratio * img.height;
-							let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight)/2;
+							let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight) / 2;
 							let imgWidth = ratio * img.width;
-							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
+							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth) / 2;
 
-							ctx.drawImage(img, imgX+cell_padding, imgY+cell_padding, imgWidth-cell_padding*2, imgHeight-cell_padding*2);
-							if(!compact_mode) {
+							ctx.drawImage(img, imgX + cell_padding, imgY + cell_padding, imgWidth - cell_padding * 2, imgHeight - cell_padding * 2);
+							if (!compact_mode) {
 								// rectangle cell and border line style
 								ctx.strokeStyle = "#8F8F8F";
 								ctx.lineWidth = 1;
-								ctx.strokeRect(x+cell_padding, y+cell_padding, cellWidth-cell_padding*2, cellHeight-cell_padding*2);
+								ctx.strokeRect(x + cell_padding, y + cell_padding, cellWidth - cell_padding * 2, cellHeight - cell_padding * 2);
 							}
 
 							ctx.filter = "none";
@@ -838,8 +838,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Adds a handler allowing drag+drop of files onto the window to load workflows
-	 */
+		* Adds a handler allowing drag+drop of files onto the window to load workflows
+		*/
 	#addDropHandler() {
 		// Get prompt from dropped PNG or json
 		document.addEventListener("drop", async (event) => {
@@ -855,7 +855,7 @@ export class ComfyApp {
 			}
 			// Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
 			if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== "image/bmp") {
-			await this.handleFile(event.dataTransfer.files[0]);
+				await this.handleFile(event.dataTransfer.files[0]);
 			} else {
 				// Try loading the first URI in the transfer list
 				const validTypes = ["text/uri-list", "text/x-moz-url"];
@@ -901,13 +901,13 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Adds a handler on paste that extracts and loads images or workflows from pasted JSON data
-	 */
+		* Adds a handler on paste that extracts and loads images or workflows from pasted JSON data
+		*/
 	#addPasteHandler() {
 		document.addEventListener("paste", async (e) => {
 			// ctrl+shift+v is used to paste nodes with connections
 			// this is handled by litegraph
-			if(this.shiftDown) return;
+			if (this.shiftDown) return;
 
 			let data = (e.clipboardData || window.clipboardData);
 			const items = data.items;
@@ -948,7 +948,7 @@ export class ComfyApp {
 					data = data.slice(data.indexOf("workflow\n"));
 					data = data.slice(data.indexOf("{"));
 					workflow = JSON.parse(data);
-				} catch (error) {}
+				} catch (error) { }
 			}
 
 			if (workflow && workflow.version && workflow.nodes && workflow.extra) {
@@ -969,8 +969,8 @@ export class ComfyApp {
 
 
 	/**
-	 * Adds a handler on copy that serializes selected nodes to JSON
-	 */
+		* Adds a handler on copy that serializes selected nodes to JSON
+		*/
 	#addCopyHandler() {
 		document.addEventListener("copy", (e) => {
 			if (e.target.type === "text" || e.target.type === "textarea") {
@@ -991,17 +991,17 @@ export class ComfyApp {
 
 
 	/**
-	 * Handle mouse
-	 *
-	 * Move group by header
-	 */
+		* Handle mouse
+		*
+		* Move group by header
+		*/
 	#addProcessMouseHandler() {
 		const self = this;
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
-		LGraphCanvas.prototype.processMouseDown = function(e) {
+		LGraphCanvas.prototype.processMouseDown = function (e) {
 			// prepare for ctrl+shift drag: zoom start
-			if(e.ctrlKey && e.shiftKey && e.buttons) {
+			if (e.ctrlKey && e.shiftKey && e.buttons) {
 				self.zoom_drag_start = [e.x, e.y, this.ds.scale];
 				return;
 			}
@@ -1025,11 +1025,11 @@ export class ComfyApp {
 		}
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
-		LGraphCanvas.prototype.processMouseMove = function(e) {
+		LGraphCanvas.prototype.processMouseMove = function (e) {
 			// handle ctrl+shift drag
-			if(e.ctrlKey && e.shiftKey && self.zoom_drag_start) {
+			if (e.ctrlKey && e.shiftKey && self.zoom_drag_start) {
 				// stop canvas zoom action
-				if(!e.buttons) {
+				if (!e.buttons) {
 					self.zoom_drag_start = null;
 					return;
 				}
@@ -1038,9 +1038,9 @@ export class ComfyApp {
 				let deltaY = e.y - self.zoom_drag_start[1];
 				let startScale = self.zoom_drag_start[2];
 
-				let scale = startScale - deltaY/100;
+				let scale = startScale - deltaY / 100;
 
-				this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+				this.ds.changeScale(scale, [this.ds.element.width / 2, this.ds.element.height / 2]);
 				this.graph.change();
 
 				return;
@@ -1063,14 +1063,14 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Handle keypress
-	 *
-	 * Ctrl + M mute/unmute selected nodes
-	 */
+		* Handle keypress
+		*
+		* Ctrl + M mute/unmute selected nodes
+		*/
 	#addProcessKeyHandler() {
 		const self = this;
 		const origProcessKey = LGraphCanvas.prototype.processKey;
-		LGraphCanvas.prototype.processKey = function(e) {
+		LGraphCanvas.prototype.processKey = function (e) {
 			if (!this.graph) {
 				return;
 			}
@@ -1133,17 +1133,17 @@ export class ComfyApp {
 					return true;
 				}
 
-				if((e.key === '+') && e.altKey) {
+				if ((e.key === '+') && e.altKey) {
 					block_default = true;
 					let scale = this.ds.scale * 1.1;
-					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.ds.changeScale(scale, [this.ds.element.width / 2, this.ds.element.height / 2]);
 					this.graph.change();
 				}
 
-				if((e.key === '-') && e.altKey) {
+				if ((e.key === '-') && e.altKey) {
 					block_default = true;
 					let scale = this.ds.scale * 1 / 1.1;
-					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.ds.changeScale(scale, [this.ds.element.width / 2, this.ds.element.height / 2]);
 					this.graph.change();
 				}
 			}
@@ -1162,13 +1162,13 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Draws group header bar
-	 */
+		* Draws group header bar
+		*/
 	#addDrawGroupsHandler() {
 		const self = this;
 
 		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
-		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
+		LGraphCanvas.prototype.drawGroups = function (canvas, ctx) {
 			if (!this.graph) {
 				return;
 			}
@@ -1206,8 +1206,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Draws node highlights (executing, drag drop) and progress bar
-	 */
+		* Draws node highlights (executing, drag drop) and progress bar
+		*/
 	#addDrawNodeHandler() {
 		const origDrawNodeShape = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
@@ -1255,7 +1255,7 @@ export class ComfyApp {
 						12 + size[0] + 1,
 						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
 						[this.round_radius * 2, this.round_radius * 2, 2, 2]
-				);
+					);
 				else if (shape == LiteGraph.CIRCLE_SHAPE)
 					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
 				ctx.strokeStyle = color;
@@ -1314,8 +1314,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Handles updates from the API socket
-	 */
+		* Handles updates from the API socket
+		*/
 	#addApiUpdateHandlers() {
 		api.addEventListener("status", ({ detail }) => {
 			this.ui.setStatus(detail);
@@ -1330,14 +1330,14 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("progress", ({ detail }) => {
-			if (this.workflowManager.activePrompt?.workflow 
+			if (this.workflowManager.activePrompt?.workflow
 				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return;
 			this.progress = detail;
 			this.graph.setDirtyCanvas(true, false);
 		});
 
 		api.addEventListener("executing", ({ detail }) => {
-			if (this.workflowManager.activePrompt ?.workflow
+			if (this.workflowManager.activePrompt?.workflow
 				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return;
 			this.progress = null;
 			this.runningNodeId = detail;
@@ -1346,7 +1346,7 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			if (this.workflowManager.activePrompt ?.workflow
+			if (this.workflowManager.activePrompt?.workflow
 				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return;
 			const output = this.nodeOutputs[detail.node];
 			if (detail.merge && output) {
@@ -1428,9 +1428,9 @@ export class ComfyApp {
 			for (const node of app.graph._nodes) {
 				node.onGraphConfigured?.();
 			}
-			
+
 			const r = onConfigure?.apply(this, arguments);
-			
+
 			// Fire after onConfigure, used by primitves to generate widget using input nodes config
 			for (const node of app.graph._nodes) {
 				node.onAfterGraphConfigured?.();
@@ -1441,21 +1441,21 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Loads all extensions from the API into the window in parallel
-	 */
+		* Loads all extensions from the API into the window in parallel
+		*/
 	async #loadExtensions() {
-	    const extensions = await api.getExtensions();
-	    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-	
-	    const extensionPromises = extensions.map(async ext => {
-	        try {
-	            await import(api.apiURL(ext));
-	        } catch (error) {
-	            console.error("Error loading extension", ext, error);
-	        }
-	    });
-	
-	    await Promise.all(extensionPromises);
+		const extensions = await api.getExtensions();
+		this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
+
+		const extensionPromises = extensions.map(async ext => {
+			try {
+				await import(api.apiURL(ext));
+			} catch (error) {
+				console.error("Error loading extension", ext, error);
+			}
+		});
+
+		await Promise.all(extensionPromises);
 		try {
 			this.menu.workflows.registerExtension(this);
 		} catch (error) {
@@ -1471,7 +1471,7 @@ export class ComfyApp {
 			if (v) {
 				try {
 					p[n] = JSON.parse(v);
-				} catch (error) {}
+				} catch (error) { }
 			}
 			return p;
 		}, {});
@@ -1497,7 +1497,7 @@ export class ComfyApp {
 		if (!user || !users[user]) {
 			// This will rarely be hit so move the loading to on demand
 			const { UserSelectionScreen } = await import("./ui/userSelection.js");
-		
+
 			this.ui.menuContainer.style.display = "none";
 			const { userId, username, created } = await new UserSelectionScreen().show(users, user);
 			this.ui.menuContainer.style.display = "";
@@ -1544,8 +1544,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Set up the app on the page
-	 */
+		* Set up the app on the page
+		*/
 	async setup() {
 		await this.#setUser();
 
@@ -1638,7 +1638,7 @@ export class ComfyApp {
 	resizeCanvas() {
 		// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
 		const scale = Math.max(window.devicePixelRatio, 1);
-		
+
 		// Clear fixed width and height while calculating rect so it uses 100% instead
 		this.canvasEl.height = this.canvasEl.width = "";
 		const { width, height } = this.canvasEl.getBoundingClientRect();
@@ -1649,8 +1649,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Registers nodes with the graph
-	 */
+		* Registers nodes with the graph
+		*/
 	async registerNodes() {
 		const app = this;
 		// Load node definitions from the backend
@@ -1688,8 +1688,8 @@ export class ComfyApp {
 
 					let widgetCreated = true;
 					const widgetType = self.getWidgetType(inputData, inputName);
-					if(widgetType) {
-						if(widgetType === "COMBO") {
+					if (widgetType) {
+						if (widgetType === "COMBO") {
 							Object.assign(config, self.widgets.COMBO(this, inputName, inputData, app) || {});
 						} else {
 							Object.assign(config, self.widgets[widgetType](this, inputName, inputData, app) || {});
@@ -1700,11 +1700,11 @@ export class ComfyApp {
 						widgetCreated = false;
 					}
 
-					if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
+					if (widgetCreated && inputData[1]?.forceInput && config?.widget) {
 						if (!config.widget.options) config.widget.options = {};
 						config.widget.options.forceInput = inputData[1].forceInput;
 					}
-					if(widgetCreated && inputData[1]?.defaultInput && config?.widget) {
+					if (widgetCreated && inputData[1]?.defaultInput && config?.widget) {
 						if (!config.widget.options) config.widget.options = {};
 						config.widget.options.defaultInput = inputData[1].defaultInput;
 					}
@@ -1712,9 +1712,9 @@ export class ComfyApp {
 
 				for (const o in nodeData["output"]) {
 					let output = nodeData["output"][o];
-					if(output instanceof Array) output = "COMBO";
+					if (output instanceof Array) output = "COMBO";
 					const outputName = nodeData["output_name"][o] || output;
-					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
 					this.addOutput(outputName, output, { shape: outputShape });
 				}
 
@@ -1743,7 +1743,7 @@ export class ComfyApp {
 		node.category = nodeData.category;
 	}
 
-    async registerNodesFromDefs(defs) {
+	async registerNodesFromDefs(defs) {
 		await this.#invokeExtensionsAsync("addCustomNodeDefs", defs);
 
 		// Generate list of known widgets
@@ -1807,7 +1807,7 @@ export class ComfyApp {
 					Array.from(new Set(missingNodeTypes)).map((t) => {
 						let children = [];
 						if (typeof t === "object") {
-							if(seenTypes.has(t.type)) return null;
+							if (seenTypes.has(t.type)) return null;
 							seenTypes.add(t.type);
 							children.push($el("span", { textContent: t.type }));
 							if (t.hint) {
@@ -1817,7 +1817,7 @@ export class ComfyApp {
 								children.push($el("button", { onclick: t.action.callback, textContent: t.action.text }));
 							}
 						} else {
-							if(seenTypes.has(t)) return null;
+							if (seenTypes.has(t)) return null;
 							seenTypes.add(t);
 							children.push($el("span", { textContent: t }));
 						}
@@ -1867,14 +1867,12 @@ export class ComfyApp {
 			reset_invalid_values = true;
 		}
 
-		if (typeof structuredClone === "undefined")
-		{
+		if (typeof structuredClone === "undefined") {
 			graphData = JSON.parse(JSON.stringify(graphData));
-		}else
-		{
+		} else {
 			graphData = structuredClone(graphData);
 		}
-	
+
 		try {
 			this.workflowManager.setWorkflow(workflow);
 		} catch (error) {
@@ -1902,7 +1900,7 @@ export class ComfyApp {
 				this.canvas.ds.offset = graphData.extra.ds.offset;
 				this.canvas.ds.scale = graphData.extra.ds.scale;
 			}
-			
+
 			try {
 				this.workflowManager.activeWorkflow?.track()
 			} catch (error) {
@@ -2127,7 +2125,7 @@ export class ComfyApp {
 		}
 
 		// Remove inputs connected to removed nodes
-		if(clean) {
+		if (clean) {
 			for (const o in output) {
 				for (const i in output[o].inputs) {
 					if (Array.isArray(output[o].inputs[i])
@@ -2155,9 +2153,9 @@ export class ComfyApp {
 		else if (error.response) {
 			let message = error.response.error.message;
 			if (error.response.error.details)
-			message += ": " + error.response.error.details;
+				message += ": " + error.response.error.details;
 			for (const [nodeID, nodeError] of Object.entries(error.response.node_errors)) {
-			message += "\n" + nodeError.class_type + ":"
+				message += "\n" + nodeError.class_type + ":"
 				for (const errorReason of nodeError.errors) {
 					message += "\n    - " + errorReason.message + ": " + errorReason.details
 				}
@@ -2248,20 +2246,20 @@ export class ComfyApp {
 	showErrorOnFileLoad(file) {
 		this.ui.dialog.show(
 			$el("div", [
-				$el("p", {textContent: `Unable to find workflow in ${file.name}`})
+				$el("p", { textContent: `Unable to find workflow in ${file.name}` })
 			]).outerHTML
 		);
 	}
 
 	/**
-	 * Loads workflow data from the specified file
-	 * @param {File} file
-	 */
+		* Loads workflow data from the specified file
+		* @param {File} file
+		*/
 	async handleFile(file) {
 		const removeExt = f => {
-			if(!f) return f;
+			if (!f) return f;
 			const p = f.lastIndexOf(".");
-			if(p === -1) return f;
+			if (p === -1) return f;
 			return f.substring(0, p);
 		};
 
@@ -2311,7 +2309,7 @@ export class ComfyApp {
 				const jsonContent = JSON.parse(reader.result);
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
-				} else if(this.isApiJson(jsonContent)) {
+				} else if (this.isApiJson(jsonContent)) {
 					this.loadApiJson(jsonContent, fileName);
 				} else {
 					await this.loadGraphData(jsonContent, true, true, fileName);
@@ -2370,7 +2368,7 @@ export class ComfyApp {
 								if (widget && node.convertWidgetToInput?.(widget)) {
 									toSlot = node.inputs?.length - 1;
 								}
-							} catch (error) {}
+							} catch (error) { }
 						}
 						if (toSlot != null || toSlot !== -1) {
 							fromNode.connect(fromSlot, node, toSlot);
@@ -2389,9 +2387,9 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Registers a Comfy web extension with the app
-	 * @param {ComfyExtension} extension
-	 */
+		* Registers a Comfy web extension with the app
+		* @param {ComfyExtension} extension
+		*/
 	registerExtension(extension) {
 		if (!extension.name) {
 			throw new Error("Extensions must have a 'name' property.");
@@ -2403,8 +2401,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Refresh combo list on whole nodes
-	 */
+		* Refresh combo list on whole nodes
+		*/
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
@@ -2412,22 +2410,22 @@ export class ComfyApp {
 			this.registerNodeDef(nodeId, defs[nodeId]);
 		}
 
-		for(let nodeNum in this.graph._nodes) {
+		for (let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
 			const def = defs[node.type];
 
 			// Allow primitive nodes to handle refresh
 			node.refreshComboInNode?.(defs);
 
-			if(!def)
+			if (!def)
 				continue;
 
-			for(const widgetNum in node.widgets) {
+			for (const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
-				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+				if (widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
 					widget.options.values = def["input"]["required"][widget.name][0];
 
-					if(widget.name != 'image' && !widget.options.values.includes(widget.value)) {
+					if (widget.name != 'image' && !widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
 						widget.callback(widget.value);
 					}
@@ -2445,8 +2443,8 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Clean current state
-	 */
+		* Clean current state
+		*/
 	clean() {
 		this.nodeOutputs = {};
 		this.nodePreviewImages = {}
