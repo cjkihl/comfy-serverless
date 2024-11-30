@@ -29,7 +29,7 @@ class INSIGHFACE_MODEL_LOADER:
             },
         }
 
-    RETURN_TYPES = ("FACEANALYSIS",)
+    RETURN_TYPES = ("FACEANALYSIS",'INSIGHTFACE')
     FUNCTION = "load_insight_face"
     CATEGORY = "CJ Nodes"
 
@@ -40,7 +40,7 @@ class INSIGHFACE_MODEL_LOADER:
         model = FaceAnalysis(name=name, root=INSIGHTFACE_MODELS_DIR, providers=[provider + 'ExecutionProvider',])
         model.prepare(ctx_id=0, det_size=(640, 640))
 
-        return (model,)
+        return (model,model)
     
 
 class INSIGHFACE_MODEL_DEBUGGER:
