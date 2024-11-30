@@ -1,5 +1,7 @@
 import comfy.options
 comfy.options.enable_args_parsing()
+from dotenv import load_dotenv
+load_dotenv()
 
 import os
 import importlib.util

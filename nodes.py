@@ -2051,7 +2051,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def init_external_custom_nodes():
+def init_external_custom_nodes(excluded_nodes=[]):
     """
     Initializes the external custom nodes.
 
@@ -2065,6 +2065,10 @@ def init_external_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
+        # Skip loading nodes from excluded plugins
+        if os.path.basename(custom_node_path) in excluded_nodes:
+            continue
+
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
@@ -2144,6 +2148,10 @@ def init_builtin_extra_nodes():
         "nodes_mochi.py",
         "nodes_slg.py",
         "nodes_lt.py",
+        "nodes_cliptextencode_loras.py",
+        "nodes_image_s3.py",
+        "nodes_image_base64.py",
+        "nodes_cj.py"
     ]
 
     import_failed = []
