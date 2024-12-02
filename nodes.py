@@ -2151,7 +2151,8 @@ def init_builtin_extra_nodes():
         "nodes_cliptextencode_loras.py",
         "nodes_image_s3.py",
         "nodes_image_base64.py",
-        "nodes_cj.py"
+        "nodes_cj.py",
+        "nodes_cj_face.py"
     ]
 
     import_failed = []
