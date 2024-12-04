@@ -365,7 +365,7 @@ class FACE_DETAILER_PART_1:
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("masks",)
-    FUNCTION = "face_mask"
+    FUNCTION = "get_face_masks"
     CATEGORY = "CJ Face Nodes"
 
     def get_face_masks(
@@ -376,50 +376,46 @@ class FACE_DETAILER_PART_1:
         feather: int,  # How much to feather the mask
         landmarks: str,  # Which landmarks to use
     ):
-
-        images_width = images.shape[2]  # W Dimension
-        images_height = images.shape[1]  # H Dimension
+        images_width = images.shape[2]
+        images_height = images.shape[1]
         batch_size = images.shape[0]
 
         if batch_size != len(face_data):
             raise ValueError("Number of images must match number of face lists")
 
-        # Create a new tensor for face detail masks # (B, H, W)
-        # The widht and height of the image will be 1024, 1024
-        face_images = torch.zeros((batch_size, 1024, 1024))
+        total_faces = sum(len(faces) for faces in face_data)
+        face_images = torch.zeros((total_faces, images_height, images_width))
 
-        # For each face, calculate the square bounding box that contains the landmarks
-        # and create a mask for the bounding box
-        for i, faces in enumerate(face_data):
-            if not faces:
-                continue
-            # Calculate bounding box for each face
-            for j, face in enumerate(faces):
+        # Pre-allocate single numpy array to reuse
+        face_mask = np.zeros((images_height, images_width), dtype=np.float32)
 
-                # Get landmarks
+        for batch_idx, faces in enumerate(face_data):
+            for face_idx, face in enumerate(faces):
+                face_mask.fill(0)  # Reset mask
+
                 points = cv2.convexHull(face.landmarks[landmarks])
-                # Get bounding rectangle
                 x, y, w, h = cv2.boundingRect(points)
 
-                # Make sure the bounding box is perfect square
-                side_length = max(w, h)
-                x1 = np.clip(x, 0, images_width)
-                y1 = np.clip(y, 0, images_height)
-                x2 = np.clip(x + side_length, 0, images_width)
-                y2 = np.clip(y + side_length, 0, images_height)
+                # Calculate padded ROI
+                x1 = max(0, x - padding)
+                y1 = max(0, y - padding)
+                x2 = min(images_width, x + w + padding)
+                y2 = min(images_height, y + h + padding)
 
-                # Create new mask for the square bounding box
-                mask = np.zeros((y2 - y1, x2 - x1), dtype=np.float32)
+                # Fill only ROI area
+                cv2.fillConvexPoly(
+                    face_mask[y1:y2, x1:x2], points - np.array([x1, y1]), (1, 1, 1)
+                )
 
-                # Calculate the offset for the mask
-                offset_x = x1 - x
-                offset_y = y1 - y
+                if feather > 0:
+                    # Only blur the ROI
+                    kernel_size = feather * 2 + 1
+                    face_mask[y1:y2, x1:x2] = cv2.GaussianBlur(
+                        face_mask[y1:y2, x1:x2], (kernel_size, kernel_size), 0
+                    )
 
-                # Fill the mask with the bounding rectangle
-                cv2.fillConvexPoly(mask, points, (1, 1, 1))
-
-                # Add mask to the face_images tensor
-                face_images[i] = torch.from_numpy(mask).float()
+                face_idx_flat = sum(len(fd) for fd in face_data[:batch_idx]) + face_idx
+                face_images[face_idx_flat] = torch.from_numpy(face_mask)
 
         return (face_images,)
 
@@ -427,6 +423,7 @@ class FACE_DETAILER_PART_1:
 NODE_CLASS_MAPPINGS = {
     "InsightFaceModelLoader": INSIGHFACE_MODEL_LOADER,
     "GetFaces": GET_FACES,
+    "FaceDetailerPart1": FACE_DETAILER_PART_1,
     "FaceCrop": FACE_CROP,
     "FaceMaskFromLandMarks": FACE_MASK_FROM_LANDMARKS,
 }
@@ -434,6 +431,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceModelLoader": "InsightFace Model Loader",
     "GetFaces": "Get Faces",
+    "FaceDetailerPart1": "Face Detailer Part 1",
     "FaceCrop": "Face Crop",
     "FaceMaskFromLandMarks": "Face Mask From LandMarks",
 }
