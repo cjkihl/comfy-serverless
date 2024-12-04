@@ -6,6 +6,7 @@ from typing import Dict, Tuple
 import folder_paths
 from PIL import Image
 import numpy as np
+from numpy.typing import NDArray
 import torchvision.transforms.v2 as T
 import cv2
 
@@ -76,7 +77,7 @@ class FaceData:
     def __init__(self, bbox: np.ndarray, landmarks: np.ndarray):
         self.bbox: Tuple[int, int, int, int] = tuple(bbox.astype(int))
         landmarks = landmarks.astype(np.int64)
-        self.landmarks: Dict[str, np.ndarray] = {
+        self.landmarks: Dict[str, NDArray[np.int64]] = {
             "main_features": landmarks[33:],
             "left_eye": landmarks[87:97],
             "right_eye": landmarks[33:43],
@@ -150,12 +151,12 @@ def expand_bbox(
     return (x1, y1, x2, y2)
 
 
-def img_crop(image: torch.Tensor, width: int, height: int, x: int, y: int):
-    x = min(x, image.shape[2] - 1)
-    y = min(y, image.shape[1] - 1)
-    to_x = min(x + width, image.shape[2])
-    to_y = min(y + height, image.shape[1])
-    return image[:, y:to_y, x:to_x, :]
+# def img_crop(image: torch.Tensor, width: int, height: int, x: int, y: int):
+#     x = min(x, image.shape[2] - 1)
+#     y = min(y, image.shape[1] - 1)
+#     to_x = min(x + width, image.shape[2])
+#     to_y = min(y + height, image.shape[1])
+#     return image[:, y:to_y, x:to_x, :]
 
 
 def get_landmarks(face: Face) -> dict[str, np.ndarray]:
@@ -288,15 +289,16 @@ class FACE_MASK_FROM_LANDMARKS:
         feather: int,
         landmarks: str,
     ):
-        if len(images) != len(face_data):
-            raise ValueError("Number of images must match number of face lists")
-
         width = images.shape[2]  # W Dimension
         height = images.shape[1]  # H Dimension
-        batch_size = len(images)
+        batch_size = images.shape[0]
+
+        if batch_size != len(face_data):
+            raise ValueError("Number of images must match number of face lists")
 
         # Initialize with correct batch dimension
         masks = torch.zeros((batch_size, height, width))
+        masks_cropped = torch.zeros((batch_size, 1024, 1024))
 
         # Process each image and its faces
         for i, faces in enumerate(face_data):
@@ -321,10 +323,105 @@ class FACE_MASK_FROM_LANDMARKS:
                 kernel_size = feather if feather % 2 == 1 else feather + 1
                 mask = cv2.GaussianBlur(mask, (kernel_size, kernel_size), 0)
 
+            # Find the smallest possible square that can contain the mask
+            points = cv2.findNonZero(mask)
+            if points is not None:
+                x, y, w, h = cv2.boundingRect(points)
+
+                # Calculate square parameters
+                side_length = max(w, h)
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # Calculate square corners
+                half_side = side_length // 2
+                x1 = np.clip(center_x - half_side, 0, width)
+                y1 = np.clip(center_y - half_side, 0, height)
+                x2 = np.clip(center_x + half_side, 0, width)
+                y2 = np.clip(center_y + half_side, 0, height)
+
+                # Crop the mask to the square
+                cropped_mask = mask[y1:y2, x1:x2]
+                masks_cropped[i] = torch.from_numpy(cropped_mask).float()
+
             # Convert to PyTorch tensor and assign to batch
             masks[i] = torch.from_numpy(mask).float()
 
         return (masks,)
+
+
+class FACE_DETAILER_PART_1:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "face_data": ("FACEDATA",),
+                "padding": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
+                "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
+                "landmarks": (LANDMARK_REGIONS, {"default": "main_features"}),
+            },
+        }
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("masks",)
+    FUNCTION = "face_mask"
+    CATEGORY = "CJ Face Nodes"
+
+    def get_face_masks(
+        self,
+        images: torch.Tensor,  # (B, H, W, C)
+        face_data: list[list[FaceData]],  # List of list of FaceData
+        padding: int,  # How much to expand mask
+        feather: int,  # How much to feather the mask
+        landmarks: str,  # Which landmarks to use
+    ):
+
+        images_width = images.shape[2]  # W Dimension
+        images_height = images.shape[1]  # H Dimension
+        batch_size = images.shape[0]
+
+        if batch_size != len(face_data):
+            raise ValueError("Number of images must match number of face lists")
+
+        # Create a new tensor for face detail masks # (B, H, W)
+        # The widht and height of the image will be 1024, 1024
+        face_images = torch.zeros((batch_size, 1024, 1024))
+
+        # For each face, calculate the square bounding box that contains the landmarks
+        # and create a mask for the bounding box
+        for i, faces in enumerate(face_data):
+            if not faces:
+                continue
+            # Calculate bounding box for each face
+            for j, face in enumerate(faces):
+
+                # Get landmarks
+                points = cv2.convexHull(face.landmarks[landmarks])
+                # Get bounding rectangle
+                x, y, w, h = cv2.boundingRect(points)
+
+                # Make sure the bounding box is perfect square
+                side_length = max(w, h)
+                x1 = np.clip(x, 0, images_width)
+                y1 = np.clip(y, 0, images_height)
+                x2 = np.clip(x + side_length, 0, images_width)
+                y2 = np.clip(y + side_length, 0, images_height)
+
+                # Create new mask for the square bounding box
+                mask = np.zeros((y2 - y1, x2 - x1), dtype=np.float32)
+
+                # Calculate the offset for the mask
+                offset_x = x1 - x
+                offset_y = y1 - y
+
+                # Fill the mask with the bounding rectangle
+                cv2.fillConvexPoly(mask, points, (1, 1, 1))
+
+                # Add mask to the face_images tensor
+                face_images[i] = torch.from_numpy(mask).float()
+
+        return (face_images,)
 
 
 NODE_CLASS_MAPPINGS = {
