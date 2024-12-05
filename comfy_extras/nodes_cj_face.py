@@ -371,21 +371,8 @@ class FACE_DETAILER_CROP:
     # Constants
 
     FACE_IMAGE_SIZE = 1024
+    MIN_FACE_SIZE = 64
     MIN_HULL_POINTS = 3
-
-    def process_hull_points(
-        self, hull_points: np.ndarray, expand_factor: float
-    ) -> np.ndarray:
-        if expand_factor <= 0:
-            return hull_points
-
-        M = cv2.moments(hull_points)
-        centroid = np.array([int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])])
-        scale = 1.0 + (expand_factor / 100.0)
-
-        points = hull_points.reshape(-1, 2)
-        expanded = ((points - centroid) * scale + centroid).astype(np.int32)
-        return expanded.reshape(-1, 1, 2)
 
     def get_face_masks(
         self,
@@ -434,9 +421,6 @@ class FACE_DETAILER_CROP:
                 if hull_points is None or len(hull_points) < self.MIN_HULL_POINTS:
                     continue
 
-                # Process hull points
-                hull_points = self.process_hull_points(hull_points, expand)
-
                 # Get square bounding box
                 x, y, w, h = cv2.boundingRect(hull_points)
                 size = max(w, h)
@@ -445,10 +429,15 @@ class FACE_DETAILER_CROP:
                 # Calculate square bounds
                 half_size = size // 2 + padding
                 x1, y1 = np.maximum(0, center - half_size)
-                x2, y2 = np.minimum([images_width, images_height], center + half_size)
+                x2, y2 = np.minimum(
+                    np.array([images_width, images_height]), center + half_size
+                )
 
                 # Ensure square
                 final_size = min(x2 - x1, y2 - y1)
+                # After calculating final_size
+                if final_size < self.MIN_FACE_SIZE:  # Add MIN_FACE_SIZE class constant
+                    continue
                 x2, y2 = x1 + final_size, y1 + final_size
 
                 # Extract and resize face
@@ -463,6 +452,12 @@ class FACE_DETAILER_CROP:
                     self.FACE_IMAGE_SIZE / final_size
                 )
                 cv2.fillConvexPoly(face_mask, roi_points.astype(np.int32), (1, 1, 1))
+
+                # If expand dilate the mask
+                if expand > 0:
+                    face_mask = cv2.dilate(
+                        face_mask, np.ones((expand, expand), np.uint8)
+                    )
 
                 # Apply feathering
                 if feather > 0:
