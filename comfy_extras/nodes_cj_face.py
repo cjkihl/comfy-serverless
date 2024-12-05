@@ -368,134 +368,116 @@ class FACE_DETAILER_CROP:
     FUNCTION = "get_face_masks"
     CATEGORY = "CJ Face Nodes"
 
+    # Constants
+
+    FACE_IMAGE_SIZE = 1024
+    MIN_HULL_POINTS = 3
+
+    def process_hull_points(
+        self, hull_points: np.ndarray, expand_factor: float
+    ) -> np.ndarray:
+        if expand_factor <= 0:
+            return hull_points
+
+        M = cv2.moments(hull_points)
+        centroid = np.array([int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])])
+        scale = 1.0 + (expand_factor / 100.0)
+
+        points = hull_points.reshape(-1, 2)
+        expanded = ((points - centroid) * scale + centroid).astype(np.int32)
+        return expanded.reshape(-1, 1, 2)
+
     def get_face_masks(
         self,
         images: torch.Tensor,  # (B, H, W, C)
         face_data: list[list[FaceData]],  # List of list of FaceData
-        padding: int,  # How much to expand mask
-        feather: int,  # How much to feather the mask
-        expand: int,  # How much to expand the mask
-        landmarks: str,  # Which landmarks to use
-    ):
-        images_width = images.shape[2]
-        images_height = images.shape[1]
-        batch_size = images.shape[0]
+        padding: int,
+        feather: int,
+        expand: int,
+        landmarks: str,
+    ) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int, int, int, int]]]:
 
-        # The cropped face image size (Square)
-        face_image_size = 1024
+        # Early validation
+        batch_size, images_height, images_width, _ = images.shape
         if batch_size != len(face_data):
             raise ValueError("Number of images must match number of face lists")
 
-        # Calculate total number of faces
+        # Pre-calculate total faces for tensor allocation
         total_faces = sum(len(faces) for faces in face_data)
-        # The cropped mask will be 1024x1024
-        face_masks = torch.zeros((total_faces, face_image_size, face_image_size))
-        # Store cropped face images
-        face_images = torch.zeros((total_faces, face_image_size, face_image_size, 3))
-        # Store face crop data. List of tuples (batch_idx, x1, y1, x2, y2)
+
+        # Initialize output tensors
+        face_masks = torch.zeros(
+            (total_faces, self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE)
+        )
+        face_images = torch.zeros(
+            (total_faces, self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE, 3)
+        )
         face_crop_data: list[tuple[int, int, int, int, int]] = []
 
-        # Keep track of current face index
+        # Pre-allocate reusable arrays
+        face_mask = np.zeros(
+            (self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE), dtype=np.float32
+        )
+        resize_transform = T.Resize((self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE))
+
         face_index = 0
-
-        # Pre-allocate single numpy array to for faces
-        face_mask = np.zeros((face_image_size, face_image_size), dtype=np.float32)
-
         for batch_idx, faces in enumerate(face_data):
             for face in faces:
-                face_mask.fill(0)  # Reset mask
+                # Skip invalid faces
                 if (
                     landmarks not in face.landmarks
                     or len(face.landmarks[landmarks]) == 0
                 ):
                     continue
 
-                # Get convex hull of landmarks
                 hull_points = cv2.convexHull(face.landmarks[landmarks])
-                if hull_points is None or len(hull_points) < 3:
+                if hull_points is None or len(hull_points) < self.MIN_HULL_POINTS:
                     continue
 
-                # Expand the convex hull if needed
-                if expand > 0:
-                    # Calculate centroid of hull points
-                    M = cv2.moments(hull_points)
-                    centroid_x = int(M["m10"] / M["m00"])
-                    centroid_y = int(M["m01"] / M["m00"])
-                    centroid = np.array([centroid_x, centroid_y])
+                # Process hull points
+                hull_points = self.process_hull_points(hull_points, expand)
 
-                    # Scale points outward from centroid
-                    scale_factor = 1.0 + (
-                        expand / 100.0
-                    )  # Adjust scale based on expand parameter
-                    hull_points = np.array(
-                        [
-                            (p - centroid) * scale_factor + centroid
-                            for p in hull_points.reshape(-1, 2)
-                        ]
-                    ).astype(np.int32)
-                    hull_points = hull_points.reshape(-1, 1, 2)
-
-                # Get bounding box
+                # Get square bounding box
                 x, y, w, h = cv2.boundingRect(hull_points)
-
-                # Calculate the square size based on the larger dimension
                 size = max(w, h)
+                center = np.array([x + w // 2, y + h // 2])
 
-                # Calculate center point of original bbox
-                center_x = x + w // 2
-                center_y = y + h // 2
+                # Calculate square bounds
+                half_size = size // 2 + padding
+                x1, y1 = np.maximum(0, center - half_size)
+                x2, y2 = np.minimum([images_width, images_height], center + half_size)
 
-                # Calculate square bounds centered on original bbox
-                half_size = size // 2
-                x1 = max(0, center_x - half_size - padding)
-                y1 = max(0, center_y - half_size - padding)
-                x2 = min(images_width, center_x + half_size + padding)
-                y2 = min(images_height, center_y + half_size + padding)
-
-                # Ensure final size is square by using smaller dimension
+                # Ensure square
                 final_size = min(x2 - x1, y2 - y1)
-                x2 = x1 + final_size
-                y2 = y1 + final_size
+                x2, y2 = x1 + final_size, y1 + final_size
 
-                # Cut image to bounding box
-                face_image = images[batch_idx, y1:y2, x1:x2, :]
-                # Permute dimensions to (C, H, W) for resize operation
-                face_image = face_image.permute(2, 0, 1)
-                # Resize image to the face image size
-                face_image = T.Resize((face_image_size, face_image_size))(face_image)
-                # Permute back to (H, W, C)
-                face_image = face_image.permute(1, 2, 0)
+                # Extract and resize face
+                face_image = images[batch_idx, y1:y2, x1:x2]
+                face_image = resize_transform(face_image.permute(2, 0, 1)).permute(
+                    1, 2, 0
+                )
 
-                # Double check so the area is a square
-                if x2 - x1 != y2 - y1:
-                    raise ValueError("Bounding box is not square")
+                # Create mask
+                face_mask.fill(0)
+                roi_points = (hull_points - np.array([[x1, y1]])) * (
+                    self.FACE_IMAGE_SIZE / final_size
+                )
+                cv2.fillConvexPoly(face_mask, roi_points.astype(np.int32), (1, 1, 1))
 
-                # Adjust points relative to ROI
-                roi_points = hull_points - np.array([[x1, y1]])
-
-                # Calculate how much we need to scale the bounding box to be the face image size
-                scale = face_image_size / (x2 - x1)
-
-                # Scale the ROI points
-                roi_points = (roi_points * scale).astype(np.int32)
-
-                # Fill the convex polygon onto the mask
-                cv2.fillConvexPoly(face_mask, roi_points, (1, 1, 1))
-
-                # Apply feathering if needed
+                # Apply feathering
                 if feather > 0:
                     kernel_size = feather * 2 + 1
                     face_mask = cv2.GaussianBlur(
                         face_mask, (kernel_size, kernel_size), 0
                     )
 
-                # Convert to tensor and store in batch
+                # Store results
                 face_masks[face_index] = torch.from_numpy(face_mask)
                 face_images[face_index] = face_image
                 face_crop_data.append((batch_idx, x1, y1, x2, y2))
                 face_index += 1
 
-        return (face_masks, face_images, face_crop_data)
+        return face_masks[:face_index], face_images[:face_index], face_crop_data
 
 
 class FACE_DETAILER_STITCH:
