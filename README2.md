@@ -44,8 +44,5 @@ aws s3 cp "$FILE" "s3://stable-diffusion/xl/dlib/$FILE" --endpoint-url $S3_ENDPO
 ```
 
 
-tmux new-session -s ui
-
-tmux ls
-
-tmux attach-session -t session_name
+# Start the service
+supervisorctl start comfy

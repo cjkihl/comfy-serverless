@@ -519,7 +519,10 @@ class FACE_DETAILER_STITCH:
                 raise ValueError("Face image is not the correct size")
 
             # Scale the face image to the size of the bounding box
+            face_image = face_image.permute(2, 0, 1)  # Change to (C, H, W)
             face_image = T.Resize((x2 - x1, y2 - y1))(face_image)
+            face_image = face_image.permute(1, 2, 0)  # Back to (H, W, C)
+
             # Copy the face image onto the original image
             images[batch_idx, y1:y2, x1:x2, :] = face_image
         return (images,)
