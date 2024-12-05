@@ -506,12 +506,15 @@ class FACE_DETAILER_STITCH:
                 "Number of face crop data must match number of face images"
             )
 
+        # Create a copy of input images
+        result_images = images.clone()
+
         # All face images are 1024x1024 but should be scaled to the bounding
         # box size and placed on the original image according to the crop data
 
         face_index = 0
         for batch_idx, x1, y1, x2, y2 in face_crop_data:
-            face_image = face_images[face_index]
+            face_image = face_images[face_index].clone()
             face_index += 1
 
             # Ensure the face image is the correct size
@@ -524,8 +527,8 @@ class FACE_DETAILER_STITCH:
             face_image = face_image.permute(1, 2, 0)  # Back to (H, W, C)
 
             # Copy the face image onto the original image
-            images[batch_idx, y1:y2, x1:x2, :] = face_image
-        return (images,)
+            result_images[batch_idx, y1:y2, x1:x2, :] = face_image
+        return (result_images,)
 
 
 NODE_CLASS_MAPPINGS = {
