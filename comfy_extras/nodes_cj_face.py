@@ -102,6 +102,10 @@ class GET_FACES:
             },
             "optional": {
                 "max_num": ("INT", {"default": 10, "min": 1, "max": 1000, "step": 1}),
+                "min_face_size": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 4096, "step": 1},
+                ),
             },
         }
 
@@ -110,8 +114,14 @@ class GET_FACES:
     FUNCTION = "get_faces"
     CATEGORY = "CJ Face Nodes"
 
-    def get_faces(self, images: np.ndarray, insightface: FaceAnalysis, max_num=10):
-        batch_face_data = []
+    def get_faces(
+        self,
+        images: torch.Tensor,
+        insightface: FaceAnalysis,
+        max_num: int = 10,
+        min_face_size: int = 0,
+    ):
+        batch_face_data: list[list[FaceData]] = []
         for img in images:
             # Get faces for single image
             faces: list[Face] = insightface.get(np.array(tensor_to_image(img)), max_num)
@@ -123,6 +133,18 @@ class GET_FACES:
             face_data = [
                 FaceData(face["bbox"], face["landmark_2d_106"]) for face in faces
             ]
+
+            # Filter faces by minimum size if needed
+            face_data = (
+                [
+                    face
+                    for face in face_data
+                    if face.bbox[2] - face.bbox[0] >= min_face_size
+                ]
+                if min_face_size > 0
+                else face_data
+            )
+
             face_data.sort(
                 key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]),
                 reverse=True,
@@ -361,6 +383,12 @@ class FACE_DETAILER_CROP:
                 "expand": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
                 "landmarks": (LANDMARK_REGIONS, {"default": "main_features"}),
             },
+            "optional": {
+                "face_size": (
+                    "INT",
+                    {"default": 1024, "min": 256, "max": 4096, "step": 1},
+                ),
+            },
         }
 
     RETURN_TYPES = ("MASK", "IMAGE", "FACECROPDATA")
@@ -370,8 +398,6 @@ class FACE_DETAILER_CROP:
 
     # Constants
 
-    FACE_IMAGE_SIZE = 1024
-    MIN_FACE_SIZE = 64
     MIN_HULL_POINTS = 3
 
     def get_face_masks(
@@ -382,6 +408,7 @@ class FACE_DETAILER_CROP:
         feather: int,
         expand: int,
         landmarks: str,
+        face_size: int = 1024,
     ) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int, int, int, int]]]:
 
         # Early validation
@@ -393,19 +420,13 @@ class FACE_DETAILER_CROP:
         total_faces = sum(len(faces) for faces in face_data)
 
         # Initialize output tensors
-        face_masks = torch.zeros(
-            (total_faces, self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE)
-        )
-        face_images = torch.zeros(
-            (total_faces, self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE, 3)
-        )
+        face_masks = torch.zeros((total_faces, face_size, face_size))
+        face_images = torch.zeros((total_faces, face_size, face_size, 3))
         face_crop_data: list[tuple[int, int, int, int, int]] = []
 
         # Pre-allocate reusable arrays
-        face_mask = np.zeros(
-            (self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE), dtype=np.float32
-        )
-        resize_transform = T.Resize((self.FACE_IMAGE_SIZE, self.FACE_IMAGE_SIZE))
+        face_mask = np.zeros((face_size, face_size), dtype=np.float32)
+        resize_transform = T.Resize((face_size, face_size))
 
         face_index = 0
         for batch_idx, faces in enumerate(face_data):
@@ -435,9 +456,7 @@ class FACE_DETAILER_CROP:
 
                 # Ensure square
                 final_size = min(x2 - x1, y2 - y1)
-                # After calculating final_size
-                if final_size < self.MIN_FACE_SIZE:  # Add MIN_FACE_SIZE class constant
-                    continue
+
                 x2, y2 = x1 + final_size, y1 + final_size
 
                 # Extract and resize face
@@ -449,7 +468,7 @@ class FACE_DETAILER_CROP:
                 # Create mask
                 face_mask.fill(0)
                 roi_points = (hull_points - np.array([[x1, y1]])) * (
-                    self.FACE_IMAGE_SIZE / final_size
+                    face_size / final_size
                 )
                 cv2.fillConvexPoly(face_mask, roi_points.astype(np.int32), (1, 1, 1))
 
