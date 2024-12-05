@@ -529,6 +529,7 @@ NODE_CLASS_MAPPINGS = {
     "InsightFaceModelLoader": INSIGHFACE_MODEL_LOADER,
     "GetFaces": GET_FACES,
     "FaceDetailerCrop": FACE_DETAILER_CROP,
+    "FaceDetailerStitch": FACE_DETAILER_STITCH,
     "FaceCrop": FACE_CROP,
     "FaceMaskFromLandMarks": FACE_MASK_FROM_LANDMARKS,
 }
@@ -537,6 +538,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceModelLoader": "InsightFace Model Loader",
     "GetFaces": "Get Faces",
     "FaceDetailerCrop": "Face Detailer Crop #1",
+    "FaceDetailerStitch": "Face Detailer Stitch #2",
     "FaceCrop": "Face Crop",
     "FaceMaskFromLandMarks": "Face Mask From LandMarks",
 }
