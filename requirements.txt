@@ -21,8 +21,4 @@ insightface==0.7.3
 onnxruntime
 onnxruntime-gpu
 python-dotenv
-setuptools==69.5.1
 opencv-python-headless>=4.10.0.82
-# cmake
-# dlib==19.24.2
-# xformers===0.0.28.post3

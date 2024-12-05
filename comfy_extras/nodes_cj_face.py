@@ -2,7 +2,6 @@ import os
 import torch
 from insightface.app import FaceAnalysis
 from insightface.app.common import Face
-from typing import Dict, Tuple
 import folder_paths
 from PIL import Image
 import numpy as np
@@ -75,9 +74,9 @@ def image_to_tensor(image: np.ndarray) -> torch.Tensor:
 
 class FaceData:
     def __init__(self, bbox: np.ndarray, landmarks: np.ndarray):
-        self.bbox: Tuple[int, int, int, int] = tuple(bbox.astype(int))
+        self.bbox: tuple[int, int, int, int] = tuple(bbox.astype(int))
         landmarks = landmarks.astype(np.int64)
-        self.landmarks: Dict[str, NDArray[np.int64]] = {
+        self.landmarks: dict[str, NDArray[np.int64]] = {
             "main_features": landmarks[33:],
             "left_eye": landmarks[87:97],
             "right_eye": landmarks[33:43],
@@ -136,10 +135,10 @@ class GET_FACES:
 def expand_bbox(
     w: int,
     h: int,
-    bbox: Tuple[int, int, int, int],
+    bbox: tuple[int, int, int, int],
     padding: int = 0,
     padding_percent: float = 0,
-) -> Tuple[int, int, int, int]:
+) -> tuple[int, int, int, int]:
     # Expand the bounding box by padding_percent and padding
     x1, y1, x2, y2 = bbox
     bbox_width = x2 - x1
@@ -350,7 +349,7 @@ class FACE_MASK_FROM_LANDMARKS:
         return (masks,)
 
 
-class FACE_DETAILER_PART_1:
+class FACE_DETAILER_CROP:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -363,8 +362,8 @@ class FACE_DETAILER_PART_1:
             },
         }
 
-    RETURN_TYPES = ("MASK",)
-    RETURN_NAMES = ("masks",)
+    RETURN_TYPES = ("MASK", "IMAGE", "FACECROPDATA")
+    RETURN_NAMES = ("face_masks", "face_images", "face_crop_data")
     FUNCTION = "get_face_masks"
     CATEGORY = "CJ Face Nodes"
 
@@ -380,50 +379,156 @@ class FACE_DETAILER_PART_1:
         images_height = images.shape[1]
         batch_size = images.shape[0]
 
+        # The cropped face image size (Square)
+        face_image_size = 1024
         if batch_size != len(face_data):
             raise ValueError("Number of images must match number of face lists")
 
+        # Calculate total number of faces
         total_faces = sum(len(faces) for faces in face_data)
-        face_images = torch.zeros((total_faces, images_height, images_width))
+        # The cropped mask will be 1024x1024
+        face_masks = torch.zeros((total_faces, face_image_size, face_image_size))
+        # Store cropped face images
+        face_images = torch.zeros((total_faces, face_image_size, face_image_size, 3))
+        # Store face crop data. List of tuples (batch_idx, x1, y1, x2, y2)
+        face_crop_data: list[tuple[int, int, int, int, int]] = []
 
-        # Pre-allocate single numpy array to reuse
-        face_mask = np.zeros((images_height, images_width), dtype=np.float32)
+        # Keep track of current face index
+        face_index = 0
+
+        # Pre-allocate single numpy array to for faces
+        face_mask = np.zeros((face_image_size, face_image_size), dtype=np.float32)
 
         for batch_idx, faces in enumerate(face_data):
-            for face_idx, face in enumerate(faces):
+            for face in faces:
                 face_mask.fill(0)  # Reset mask
+                if (
+                    landmarks not in face.landmarks
+                    or len(face.landmarks[landmarks]) == 0
+                ):
+                    continue
 
-                points = cv2.convexHull(face.landmarks[landmarks])
-                x, y, w, h = cv2.boundingRect(points)
+                # Get convex hull of landmarks
+                hull_points = cv2.convexHull(face.landmarks[landmarks])
+                if hull_points is None or len(hull_points) < 3:
+                    continue
 
-                # Calculate padded ROI
-                x1 = max(0, x - padding)
-                y1 = max(0, y - padding)
-                x2 = min(images_width, x + w + padding)
-                y2 = min(images_height, y + h + padding)
+                # Get bounding box
+                x, y, w, h = cv2.boundingRect(hull_points)
 
-                # Fill only ROI area
-                cv2.fillConvexPoly(
-                    face_mask[y1:y2, x1:x2], points - np.array([x1, y1]), (1, 1, 1)
-                )
+                # Calculate the square size based on the larger dimension
+                size = max(w, h)
 
+                # Calculate center point of original bbox
+                center_x = x + w // 2
+                center_y = y + h // 2
+
+                # Calculate square bounds centered on original bbox
+                half_size = size // 2
+                x1 = max(0, center_x - half_size - padding)
+                y1 = max(0, center_y - half_size - padding)
+                x2 = min(images_width, center_x + half_size + padding)
+                y2 = min(images_height, center_y + half_size + padding)
+
+                # Ensure final size is square by using smaller dimension
+                final_size = min(x2 - x1, y2 - y1)
+                x2 = x1 + final_size
+                y2 = y1 + final_size
+
+                # Cut image to bounding box
+                face_image = images[batch_idx, y1:y2, x1:x2, :]
+                # Permute dimensions to (C, H, W) for resize operation
+                face_image = face_image.permute(2, 0, 1)
+                # Resize image to the face image size
+                face_image = T.Resize((face_image_size, face_image_size))(face_image)
+                # Permute back to (H, W, C)
+                face_image = face_image.permute(1, 2, 0)
+
+                # Double check so the area is a square
+                if x2 - x1 != y2 - y1:
+                    raise ValueError("Bounding box is not square")
+
+                # Adjust points relative to ROI
+                roi_points = hull_points - np.array([[x1, y1]])
+
+                # Calculate how much we need to scale the bounding box to be the face image size
+                scale = face_image_size / (x2 - x1)
+
+                # Scale the ROI points
+                roi_points = (roi_points * scale).astype(np.int32)
+
+                # Fill the convex polygon onto the mask
+                cv2.fillConvexPoly(face_mask, roi_points, (1, 1, 1))
+
+                # Apply feathering if needed
                 if feather > 0:
-                    # Only blur the ROI
                     kernel_size = feather * 2 + 1
-                    face_mask[y1:y2, x1:x2] = cv2.GaussianBlur(
-                        face_mask[y1:y2, x1:x2], (kernel_size, kernel_size), 0
+                    face_mask = cv2.GaussianBlur(
+                        face_mask, (kernel_size, kernel_size), 0
                     )
 
-                face_idx_flat = sum(len(fd) for fd in face_data[:batch_idx]) + face_idx
-                face_images[face_idx_flat] = torch.from_numpy(face_mask)
+                # Convert to tensor and store in batch
+                face_masks[face_index] = torch.from_numpy(face_mask)
+                face_images[face_index] = face_image
+                face_crop_data.append((batch_idx, x1, y1, x2, y2))
+                face_index += 1
 
-        return (face_images,)
+        return (face_masks, face_images, face_crop_data)
+
+
+class FACE_DETAILER_STITCH:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "face_images": ("IMAGE",),
+                "face_crop_data": ("FACECROPDATA",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
+    FUNCTION = "stitch_face_images"
+    CATEGORY = "CJ Face Nodes"
+
+    def stitch_face_images(
+        self,
+        images: torch.Tensor,  # (B, H, W, C) The original images to stitch faces onto
+        face_images: torch.Tensor,  # (B, H, W, C) The face images to stitch
+        face_crop_data: list[
+            tuple[int, int, int, int, int]
+        ],  # List face crop data (batch_idx, x1, y1, x2, y2)
+    ):
+
+        if len(face_crop_data) != len(face_images):
+            raise ValueError(
+                "Number of face crop data must match number of face images"
+            )
+
+        # All face images are 1024x1024 but should be scaled to the bounding
+        # box size and placed on the original image according to the crop data
+
+        face_index = 0
+        for batch_idx, x1, y1, x2, y2 in face_crop_data:
+            face_image = face_images[face_index]
+            face_index += 1
+
+            # Ensure the face image is the correct size
+            if face_image.shape[0] != 1024 or face_image.shape[1] != 1024:
+                raise ValueError("Face image is not the correct size")
+
+            # Scale the face image to the size of the bounding box
+            face_image = T.Resize((x2 - x1, y2 - y1))(face_image)
+            # Copy the face image onto the original image
+            images[batch_idx, y1:y2, x1:x2, :] = face_image
+        return (images,)
 
 
 NODE_CLASS_MAPPINGS = {
     "InsightFaceModelLoader": INSIGHFACE_MODEL_LOADER,
     "GetFaces": GET_FACES,
-    "FaceDetailerPart1": FACE_DETAILER_PART_1,
+    "FaceDetailerCrop": FACE_DETAILER_CROP,
     "FaceCrop": FACE_CROP,
     "FaceMaskFromLandMarks": FACE_MASK_FROM_LANDMARKS,
 }
@@ -431,7 +536,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceModelLoader": "InsightFace Model Loader",
     "GetFaces": "Get Faces",
-    "FaceDetailerPart1": "Face Detailer Part 1",
+    "FaceDetailerCrop": "Face Detailer Crop #1",
     "FaceCrop": "Face Crop",
     "FaceMaskFromLandMarks": "Face Mask From LandMarks",
 }
