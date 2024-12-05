@@ -358,6 +358,7 @@ class FACE_DETAILER_CROP:
                 "face_data": ("FACEDATA",),
                 "padding": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
                 "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
+                "expand": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
                 "landmarks": (LANDMARK_REGIONS, {"default": "main_features"}),
             },
         }
@@ -373,6 +374,7 @@ class FACE_DETAILER_CROP:
         face_data: list[list[FaceData]],  # List of list of FaceData
         padding: int,  # How much to expand mask
         feather: int,  # How much to feather the mask
+        expand: int,  # How much to expand the mask
         landmarks: str,  # Which landmarks to use
     ):
         images_width = images.shape[2]
@@ -412,6 +414,26 @@ class FACE_DETAILER_CROP:
                 hull_points = cv2.convexHull(face.landmarks[landmarks])
                 if hull_points is None or len(hull_points) < 3:
                     continue
+
+                # Expand the convex hull if needed
+                if expand > 0:
+                    # Calculate centroid of hull points
+                    M = cv2.moments(hull_points)
+                    centroid_x = int(M["m10"] / M["m00"])
+                    centroid_y = int(M["m01"] / M["m00"])
+                    centroid = np.array([centroid_x, centroid_y])
+
+                    # Scale points outward from centroid
+                    scale_factor = 1.0 + (
+                        expand / 100.0
+                    )  # Adjust scale based on expand parameter
+                    hull_points = np.array(
+                        [
+                            (p - centroid) * scale_factor + centroid
+                            for p in hull_points.reshape(-1, 2)
+                        ]
+                    ).astype(np.int32)
+                    hull_points = hull_points.reshape(-1, 1, 2)
 
                 # Get bounding box
                 x, y, w, h = cv2.boundingRect(hull_points)
