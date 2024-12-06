@@ -560,17 +560,25 @@ class FACE_DETAILER_CROP:
 
                 # Crop and resize face image
                 face_image = images[batch_idx, y1:y2, x1:x2]  # [H, W, C]
+                print(f"After crop - range: [{face_image.min()}, {face_image.max()}]")
+
+                # Convert to channels-first format
                 face_image = face_image.permute(2, 0, 1)  # [C, H, W]
                 face_image = face_image.unsqueeze(0)  # [1, C, H, W]
+
+                # Upscale
                 face_image = comfy.utils.common_upscale(
-                    face_image,
-                    face_size,
-                    face_size,
-                    "bilinear",
-                    "disabled",
-                )  # [1, C, face_size, face_size]
+                    face_image, face_size, face_size, "bilinear", "disabled"
+                )
+
+                # Convert back to channels-last format
                 face_image = face_image.squeeze(0)  # [C, face_size, face_size]
-                face_image = face_image.permute(1, 2, 0)
+                face_image = face_image.permute(1, 2, 0)  # [face_size, face_size, C]
+                print(f"After resize - range: [{face_image.min()}, {face_image.max()}]")
+
+                # Store results
+                face_images[face_index] = face_image
+
                 face_crop_data.append((batch_idx, x1, y1, x2, y2))
                 face_index += 1
 
