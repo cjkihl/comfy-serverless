@@ -209,32 +209,6 @@ def expand_bbox(
     return (x1, y1, x2, y2)
 
 
-# def img_crop(image: torch.Tensor, width: int, height: int, x: int, y: int):
-#     x = min(x, image.shape[2] - 1)
-#     y = min(y, image.shape[1] - 1)
-#     to_x = min(x + width, image.shape[2])
-#     to_y = min(y + height, image.shape[1])
-#     return image[:, y:to_y, x:to_x, :]
-
-
-def get_landmarks(face: Face) -> dict[str, np.ndarray]:
-    shape = face[0]["landmark_2d_106"]
-    landmarks: np.ndarray = np.round(shape).astype(np.int64)
-    return {
-        "landmarks": landmarks,
-        "main_features": landmarks[33:],
-        "left_eye": landmarks[87:97],
-        "right_eye": landmarks[33:43],
-        "eyes": landmarks[[*range(33, 43), *range(87, 97)]],
-        "nose": landmarks[72:87],
-        "mouth": landmarks[52:72],
-        "left_brow": landmarks[97:106],
-        "right_brow": landmarks[43:52],
-        "outline": landmarks[[*range(33), *range(48, 51), *range(102, 105)]],
-        "outline_forehead": landmarks[[*range(33), *range(48, 51), *range(102, 105)]],
-    }
-
-
 class FACE_CROP:
     @classmethod
     def INPUT_TYPES(s):
@@ -351,9 +325,6 @@ class FACE_MASK_FROM_LANDMARKS:
         height = images.shape[1]  # H Dimension
         batch_size = images.shape[0]
 
-        if batch_size != len(face_data):
-            raise ValueError("Number of images must match number of face lists")
-
         # Initialize with correct batch dimension
         masks = torch.zeros((batch_size, height, width))
         masks_cropped = torch.zeros((batch_size, 1024, 1024))
@@ -408,6 +379,81 @@ class FACE_MASK_FROM_LANDMARKS:
         return (masks,)
 
 
+def calculate_square_bounds(
+    w: int,
+    h: int,
+    center_x: int,
+    center_y: int,
+    padding_percent: float,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, int, int, int]:
+    """Calculate square bounds with padding around center point"""
+    size = max(w, h)
+    center = np.array([center_x, center_y])
+
+    half_size = size // 2
+    padding = half_size * (padding_percent / 100)
+    padded_half_size = int(half_size + padding)
+
+    x1, y1 = np.maximum(0, center - padded_half_size)
+    x2, y2 = np.minimum(
+        np.array([image_width, image_height]), center + padded_half_size
+    )
+
+    # Ensure square
+    final_size = min(x2 - x1, y2 - y1)
+    x2, y2 = x1 + final_size, y1 + final_size
+
+    return int(x1), int(y1), int(x2), int(y2)
+
+
+def dilate_mask(face_mask: np.ndarray, expand_percent: float) -> np.ndarray:
+    """
+    Dilate mask by percentage of mask size
+    Args:
+        face_mask: Input mask array (2D binary mask)
+        expand_percent: Percentage to expand (0-100)
+    Returns:
+        Dilated mask array
+    """
+    if expand_percent <= 0:
+        return face_mask
+
+    mask_height, mask_width = face_mask.shape
+    kernel_size = int((min(mask_height, mask_width) * expand_percent) / 100)
+    # Ensure odd kernel size >= 3
+    kernel_size = max(3, kernel_size + (kernel_size % 2 == 0))
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+
+    return cv2.dilate(face_mask, kernel)
+
+
+def feather_mask(face_mask: np.ndarray, feather_percent: float) -> np.ndarray:
+    """
+    Feather mask edges by percentage of mask size
+    Args:
+        face_mask: Input mask array (2D binary mask)
+        feather_percent: Percentage to feather (0-100)
+    Returns:
+        Feathered mask array
+    """
+    if not isinstance(face_mask, np.ndarray) or face_mask.ndim != 2:
+        raise ValueError("face_mask must be 2D numpy array")
+    if not 0 <= feather_percent <= 100:
+        raise ValueError("feather_percent must be between 0 and 100")
+
+    if feather_percent <= 0:
+        return face_mask
+
+    mask_height, mask_width = face_mask.shape
+    kernel_size = int((min(mask_height, mask_width) * feather_percent) / 100)
+    # Ensure odd kernel size >= 3
+    kernel_size = max(3, kernel_size + (1 - kernel_size % 2))
+
+    return cv2.GaussianBlur(face_mask, (kernel_size, kernel_size), 0)
+
+
 class FACE_DETAILER_CROP:
     @classmethod
     def INPUT_TYPES(s):
@@ -441,9 +487,9 @@ class FACE_DETAILER_CROP:
         self,
         images: torch.Tensor,  # (B, H, W, C)
         face_data: list[list[FaceData]],  # List of list of FaceData
-        padding: int,
-        feather: int,
-        expand: int,
+        padding: int,  # Padding percent around face
+        feather: int,  # Feathering percent around face
+        expand: int,  # Percent to expand mask
         landmarks: str,
         face_size: int = 1024,
     ) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int, int, int, int]]]:
@@ -463,7 +509,7 @@ class FACE_DETAILER_CROP:
 
         # Pre-allocate reusable arrays
         face_mask = np.zeros((face_size, face_size), dtype=np.float32)
-        resize_transform = T.Resize((face_size, face_size))
+        resize_transform = T.Resize((face_size, face_size), T.InterpolationMode.LANCZOS)
 
         face_index = 0
         for batch_idx, faces in enumerate(face_data):
@@ -479,22 +525,18 @@ class FACE_DETAILER_CROP:
                 if hull_points is None or len(hull_points) < self.MIN_HULL_POINTS:
                     continue
 
-                # Get square bounding box
                 x, y, w, h = cv2.boundingRect(hull_points)
-                size = max(w, h)
-                center = np.array([x + w // 2, y + h // 2])
 
-                # Calculate square bounds
-                half_size = size // 2 + padding
-                x1, y1 = np.maximum(0, center - half_size)
-                x2, y2 = np.minimum(
-                    np.array([images_width, images_height]), center + half_size
+                # Get square bounding box
+                x1, y1, x2, y2 = calculate_square_bounds(
+                    w,
+                    h,
+                    x + w // 2,
+                    y + h // 2,
+                    padding,
+                    images_width,
+                    images_height,
                 )
-
-                # Ensure square
-                final_size = min(x2 - x1, y2 - y1)
-
-                x2, y2 = x1 + final_size, y1 + final_size
 
                 # Extract and resize face
                 face_image = images[batch_idx, y1:y2, x1:x2]
@@ -504,23 +546,19 @@ class FACE_DETAILER_CROP:
 
                 # Create mask
                 face_mask.fill(0)
+                # Convert hull points to face size
                 roi_points = (hull_points - np.array([[x1, y1]])) * (
-                    face_size / final_size
+                    face_size / (x2 - x1)
                 )
                 cv2.fillConvexPoly(face_mask, roi_points.astype(np.int32), (1, 1, 1))
 
-                # If expand dilate the mask
+                # If expand dilate the mask.
                 if expand > 0:
-                    face_mask = cv2.dilate(
-                        face_mask, np.ones((expand, expand), np.uint8)
-                    )
+                    face_mask = dilate_mask(face_mask, expand)
 
                 # Apply feathering
                 if feather > 0:
-                    kernel_size = feather * 2 + 1
-                    face_mask = cv2.GaussianBlur(
-                        face_mask, (kernel_size, kernel_size), 0
-                    )
+                    face_mask = feather_mask(face_mask, feather)
 
                 # Store results
                 face_masks[face_index] = torch.from_numpy(face_mask)
@@ -564,21 +602,16 @@ class FACE_DETAILER_STITCH:
         # Create a copy of input images
         result_images = images.clone()
 
-        # All face images are 1024x1024 but should be scaled to the bounding
-        # box size and placed on the original image according to the crop data
-
         face_index = 0
         for batch_idx, x1, y1, x2, y2 in face_crop_data:
             face_image = face_images[face_index].clone()
             face_index += 1
 
-            # Ensure the face image is the correct size
-            if face_image.shape[0] != 1024 or face_image.shape[1] != 1024:
-                raise ValueError("Face image is not the correct size")
-
             # Scale the face image to the size of the bounding box
             face_image = face_image.permute(2, 0, 1)  # Change to (C, H, W)
-            face_image = T.Resize((x2 - x1, y2 - y1))(face_image)
+            face_image = T.Resize((x2 - x1, y2 - y1), T.InterpolationMode.LANCZOS)(
+                face_image
+            )
             face_image = face_image.permute(1, 2, 0)  # Back to (H, W, C)
 
             # Copy the face image onto the original image
