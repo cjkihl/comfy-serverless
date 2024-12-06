@@ -118,10 +118,38 @@ class InsightFaceWrapper:
         return None
 
 
+class PickImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images1": ("IMAGE", {"lazy": True}),
+                "images2": ("IMAGE", {"lazy": True}),
+                "use_images2": ("BOOLEAN", {"default": False}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "pick_image"
+
+    CATEGORY = "CJ Nodes"
+
+    def check_lazy_status(self, images1, images2, use_images2):
+        r = ["images2"] if use_images2 else ["images1"]
+        print(f"Returning {r}")
+        return r
+
+    # Not trying to handle different batch sizes here just to keep the demo simple
+    def pick_image(self, images1, images2, use_images2):
+        return (images2,) if use_images2 else (images1,)
+
+
 NODE_CLASS_MAPPINGS = {
     "InsightFaceToAnalysisModel": INSIGHFACE_TO_ANALYSIS_MODEL,
+    "PickImage": PickImage,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceToAnalysisModel": "InsightFace to Analysis Model",
+    "PickImage": "Pick Image",
 }

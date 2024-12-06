@@ -1,4 +1,5 @@
 import os
+from comfy_execution.graph import ExecutionBlocker
 import torch
 from insightface.app import FaceAnalysis
 from insightface.app.common import Face
@@ -101,7 +102,7 @@ class GET_FACES:
                 "insightface": ("INSIGHTFACE",),
             },
             "optional": {
-                "max_num": ("INT", {"default": 10, "min": 1, "max": 1000, "step": 1}),
+                "max_num": ("INT", {"default": 100, "min": 0, "max": 1000, "step": 1}),
                 "min_face_size": (
                     "INT",
                     {"default": 0, "min": 0, "max": 4096, "step": 1},
@@ -121,8 +122,12 @@ class GET_FACES:
         max_num: int = 10,
         min_face_size: int = 0,
     ):
-        batch_face_data: list[list[FaceData]] = []
-        for img in images:
+        batch_face_data: list[list[FaceData]] = [[] for _ in range(len(images))]
+
+        if max_num == 0:
+            return (batch_face_data,)
+
+        for i, img in enumerate(images):
             # Get faces for single image
             faces: list[Face] = insightface.get(np.array(tensor_to_image(img)), max_num)
             if faces is None:
@@ -145,13 +150,45 @@ class GET_FACES:
                 else face_data
             )
 
+            if (len(face_data)) == 0:
+                batch_face_data.append([])
+                continue
+
             face_data.sort(
                 key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]),
                 reverse=True,
             )
-            batch_face_data.append(face_data)
+            batch_face_data[i] = face_data
 
         return (batch_face_data,)
+
+
+class HAS_FACES:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "face_data": ("FACEDATA",),
+                "images": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("FACEDATA", "IMAGE", "BOOLEAN", "BOOLEAN")
+    RETURN_NAMES = ("face data", "images bypass", "has_faces", "no_faces")
+    FUNCTION = "has_faces"
+    CATEGORY = "CJ Face Nodes"
+
+    def has_faces(
+        self,
+        images: torch.Tensor,
+        face_data: list[list[FaceData]],
+    ):
+        # Check if there are faces in the face_data
+        face_count = sum(len(faces) for faces in face_data)
+        if face_count > 0:
+            return (face_data, ExecutionBlocker(None), True, False)
+        else:
+            return (ExecutionBlocker(None), images, False, True)
 
 
 def expand_bbox(
@@ -552,6 +589,7 @@ class FACE_DETAILER_STITCH:
 NODE_CLASS_MAPPINGS = {
     "InsightFaceModelLoader": INSIGHFACE_MODEL_LOADER,
     "GetFaces": GET_FACES,
+    "HasFaces": HAS_FACES,
     "FaceDetailerCrop": FACE_DETAILER_CROP,
     "FaceDetailerStitch": FACE_DETAILER_STITCH,
     "FaceCrop": FACE_CROP,
@@ -561,6 +599,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceModelLoader": "InsightFace Model Loader",
     "GetFaces": "Get Faces",
+    "HasFaces": "Has Faces",
     "FaceDetailerCrop": "Face Detailer Crop #1",
     "FaceDetailerStitch": "Face Detailer Stitch #2",
     "FaceCrop": "Face Crop",
