@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 import torchvision.transforms.v2 as T
 import cv2
+import comfy.utils
 
 
 INSIGHTFACE_MODELS_DIR = os.path.join(folder_paths.models_dir, "insightface")
@@ -509,7 +510,7 @@ class FACE_DETAILER_CROP:
 
         # Pre-allocate reusable arrays
         face_mask = np.zeros((face_size, face_size), dtype=np.float32)
-        resize_transform = T.Resize((face_size, face_size), T.InterpolationMode.LANCZOS)
+        # resize_transform = T.Resize((face_size, face_size), T.InterpolationMode.LANCZOS)
 
         face_index = 0
         for batch_idx, faces in enumerate(face_data):
@@ -538,12 +539,6 @@ class FACE_DETAILER_CROP:
                     images_height,
                 )
 
-                # Extract and resize face
-                face_image = images[batch_idx, y1:y2, x1:x2]
-                face_image = resize_transform(face_image.permute(2, 0, 1)).permute(
-                    1, 2, 0
-                )
-
                 # Create mask
                 face_mask.fill(0)
                 # Convert hull points to face size
@@ -562,7 +557,17 @@ class FACE_DETAILER_CROP:
 
                 # Store results
                 face_masks[face_index] = torch.from_numpy(face_mask)
-                face_images[face_index] = face_image
+
+                # Crop and resize face image
+                face_image = images[batch_idx, y1:y2, x1:x2]
+                face_image = comfy.utils.common_upscale(
+                    face_image.unsqueeze(0),
+                    face_size,
+                    face_size,
+                    "bilinear",
+                    "disabled",
+                )
+                face_images[face_index] = face_image.squeeze(0)
                 face_crop_data.append((batch_idx, x1, y1, x2, y2))
                 face_index += 1
 
@@ -609,7 +614,7 @@ class FACE_DETAILER_STITCH:
 
             # Scale the face image to the size of the bounding box
             face_image = face_image.permute(2, 0, 1)  # Change to (C, H, W)
-            face_image = T.Resize((x2 - x1, y2 - y1), T.InterpolationMode.LANCZOS)(
+            face_image = T.Resize((x2 - x1, y2 - y1), T.InterpolationMode.BILINEAR)(
                 face_image
             )
             face_image = face_image.permute(1, 2, 0)  # Back to (H, W, C)

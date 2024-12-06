@@ -46,3 +46,7 @@ aws s3 cp "$FILE" "s3://stable-diffusion/xl/dlib/$FILE" --endpoint-url $S3_ENDPO
 
 # Start the service
 supervisorctl start comfy
+
+rm -rf /comfy/models
+ln -s /models /comfy/models
+/comfy/install_requirements.sh
