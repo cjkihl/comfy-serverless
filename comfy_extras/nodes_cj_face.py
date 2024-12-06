@@ -455,6 +455,34 @@ def feather_mask(face_mask: np.ndarray, feather_percent: float) -> np.ndarray:
     return cv2.GaussianBlur(face_mask, (kernel_size, kernel_size), 0)
 
 
+def resize_face_image(
+    face_image: torch.Tensor, target_size: int, method: str = "bilinear"
+) -> torch.Tensor:
+    """
+    Resize face image tensor to target size
+    Args:
+        face_image: Input tensor [H,W,C]
+        target_size: Output size (square)
+        method: Interpolation method
+    Returns:
+        Resized tensor [target_size,target_size,C]
+    """
+    # Convert to channels-first format
+    face_image = face_image.permute(2, 0, 1)  # [C, H, W]
+    face_image = face_image.unsqueeze(0)  # [1, C, H, W]
+
+    # Upscale
+    face_image = comfy.utils.common_upscale(
+        face_image, target_size, target_size, method, "disabled"
+    )
+
+    # Convert back to channels-last format
+    face_image = face_image.squeeze(0)  # [C, size, size]
+    face_image = face_image.permute(1, 2, 0)  # [size, size, C]
+
+    return face_image
+
+
 class FACE_DETAILER_CROP:
     @classmethod
     def INPUT_TYPES(s):
@@ -560,20 +588,7 @@ class FACE_DETAILER_CROP:
 
                 # Crop and resize face image
                 face_image = images[batch_idx, y1:y2, x1:x2]  # [H, W, C]
-                print(f"After crop - range: [{face_image.min()}, {face_image.max()}]")
-
-                # Convert to channels-first format
-                face_image = face_image.permute(2, 0, 1)  # [C, H, W]
-                face_image = face_image.unsqueeze(0)  # [1, C, H, W]
-
-                # Upscale
-                face_image = comfy.utils.common_upscale(
-                    face_image, face_size, face_size, "bilinear", "disabled"
-                )
-
-                # Convert back to channels-last format
-                face_image = face_image.squeeze(0)  # [C, face_size, face_size]
-                face_image = face_image.permute(1, 2, 0)  # [face_size, face_size, C]
+                face_image = resize_face_image(face_image, face_size)
                 print(f"After resize - range: [{face_image.min()}, {face_image.max()}]")
 
                 # Store results
@@ -622,14 +637,7 @@ class FACE_DETAILER_STITCH:
         for batch_idx, x1, y1, x2, y2 in face_crop_data:
             face_image = face_images[face_index].clone()
             face_index += 1
-
-            # Scale the face image to the size of the bounding box
-            face_image = face_image.permute(2, 0, 1)  # Change to (C, H, W)
-            face_image = T.Resize((x2 - x1, y2 - y1), T.InterpolationMode.BILINEAR)(
-                face_image
-            )
-            face_image = face_image.permute(1, 2, 0)  # Back to (H, W, C)
-
+            face_image = resize_face_image(face_image, x2 - x1)
             # Copy the face image onto the original image
             result_images[batch_idx, y1:y2, x1:x2, :] = face_image
         return (result_images,)
