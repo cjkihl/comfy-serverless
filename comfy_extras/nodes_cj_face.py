@@ -559,15 +559,18 @@ class FACE_DETAILER_CROP:
                 face_masks[face_index] = torch.from_numpy(face_mask)
 
                 # Crop and resize face image
-                face_image = images[batch_idx, y1:y2, x1:x2]
+                face_image = images[batch_idx, y1:y2, x1:x2]  # [H, W, C]
+                face_image = face_image.permute(2, 0, 1)  # [C, H, W]
+                face_image = face_image.unsqueeze(0)  # [1, C, H, W]
                 face_image = comfy.utils.common_upscale(
-                    face_image.unsqueeze(0),
+                    face_image,
                     face_size,
                     face_size,
                     "bilinear",
                     "disabled",
-                )
-                face_images[face_index] = face_image.squeeze(0)
+                )  # [1, C, face_size, face_size]
+                face_image = face_image.squeeze(0)  # [C, face_size, face_size]
+                face_image = face_image.permute(1, 2, 0)
                 face_crop_data.append((batch_idx, x1, y1, x2, y2))
                 face_index += 1
 
