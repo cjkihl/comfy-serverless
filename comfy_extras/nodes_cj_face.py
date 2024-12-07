@@ -67,13 +67,6 @@ def tensor_to_image(image: torch.Tensor) -> Image.Image:
     return T.ToPILImage()(image.permute(2, 0, 1)).convert("RGB")
 
 
-# PyTorch tensor format is (B,H,W,C)
-
-
-def image_to_tensor(image: np.ndarray) -> torch.Tensor:
-    return T.ToTensor()(image).permute(1, 2, 0)
-
-
 class FaceData:
     def __init__(self, bbox: np.ndarray, landmarks: np.ndarray):
         self.bbox: tuple[int, int, int, int] = tuple(bbox.astype(int))
@@ -210,78 +203,6 @@ def expand_bbox(
     return (x1, y1, x2, y2)
 
 
-class FACE_CROP:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "images": ("IMAGE",),
-                "face_data": ("FACEDATA",),
-                "padding": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
-                "padding_percent": (
-                    "FLOAT",
-                    {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05},
-                ),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("face_crop1", "face_crop2", "face_crop3", "face_crop4")
-    FUNCTION = "face_crop"
-    CATEGORY = "CJ Face Nodes"
-
-    def face_crop(
-        self,
-        images: torch.Tensor,  # (B, H, W, C)
-        face_data: list[list[FaceData]],
-        padding: int,
-        padding_percent: float,
-    ) -> tuple[torch.Tensor, ...]:
-        if len(images) != len(face_data):
-            raise ValueError("Number of images must match number of face lists")
-        result: list[torch.Tensor] = []
-        width = images.shape[2]  # W Dimension
-        height = images.shape[1]  # H Dimension
-        max_face_count = 4
-        face_count = 0
-
-        # Process each image and its faces
-        for i, faces in enumerate(face_data):
-            if face_count >= max_face_count:
-                break
-
-            if not faces:
-                continue
-
-            # Process faces in current image
-            for face in faces:
-                if face_count >= max_face_count:
-                    break
-                face_count += 1
-
-                x1, y1, x2, y2 = face.bbox
-                # Apply padding if needed
-                if padding != 0 or padding_percent != 0:
-                    x1, y1, x2, y2 = expand_bbox(
-                        width, height, face.bbox, padding, padding_percent
-                    )
-
-                # Safe cropping with batch dimension
-                x = max(0, min(x1, width - 1))
-                y = max(0, min(y1, height - 1))
-                to_x = min(x + (x2 - x1), width)
-                to_y = min(y + (y2 - y1), height)
-
-                if to_x > x and to_y > y:  # Ensure valid crop dimensions
-                    cropped_image = images[i : i + 1, y:to_y, x:to_x, :]
-                    result.append(cropped_image)
-
-        # If no faces, throw an error
-        if not result:
-            raise ValueError("No faces found in image")
-        return tuple(result)
-
-
 LANDMARK_REGIONS = [
     "eyes",
     "left_brow",
@@ -294,90 +215,6 @@ LANDMARK_REGIONS = [
     "right_brow",
     "right_eye",
 ]
-
-
-class FACE_MASK_FROM_LANDMARKS:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "images": ("IMAGE",),
-                "face_data": ("FACEDATA",),
-                "padding": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
-                "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
-                "landmarks": (LANDMARK_REGIONS, {"default": "main_features"}),
-            },
-        }
-
-    RETURN_TYPES = ("MASK",)
-    RETURN_NAMES = ("masks",)
-    FUNCTION = "face_mask"
-    CATEGORY = "CJ Face Nodes"
-
-    def face_mask(
-        self,
-        images: torch.Tensor,  # (B, H, W, C)
-        face_data: list[list[FaceData]],
-        padding: int,
-        feather: int,
-        landmarks: str,
-    ):
-        width = images.shape[2]  # W Dimension
-        height = images.shape[1]  # H Dimension
-        batch_size = images.shape[0]
-
-        # Initialize with correct batch dimension
-        masks = torch.zeros((batch_size, height, width))
-        masks_cropped = torch.zeros((batch_size, 1024, 1024))
-
-        # Process each image and its faces
-        for i, faces in enumerate(face_data):
-            if not faces:
-                continue
-
-            # Create mask for current image
-            mask = np.zeros(
-                (height, width), dtype=np.float32
-            )  # Use float32 for compatibility with PyTorch
-            for face in faces:
-                # Get landmarks
-                points = cv2.convexHull(face.landmarks[landmarks])
-                cv2.fillConvexPoly(mask, points, (1, 1, 1))  # Use color scalar (1,1,1)
-
-            if padding > 0:
-                kernel = np.ones((padding * 2 + 1, padding * 2 + 1), np.uint8)
-                mask = cv2.dilate(mask, kernel, iterations=1)
-
-            # Apply feathering
-            if feather > 0:
-                kernel_size = feather if feather % 2 == 1 else feather + 1
-                mask = cv2.GaussianBlur(mask, (kernel_size, kernel_size), 0)
-
-            # Find the smallest possible square that can contain the mask
-            points = cv2.findNonZero(mask)
-            if points is not None:
-                x, y, w, h = cv2.boundingRect(points)
-
-                # Calculate square parameters
-                side_length = max(w, h)
-                center_x = x + w // 2
-                center_y = y + h // 2
-
-                # Calculate square corners
-                half_side = side_length // 2
-                x1 = np.clip(center_x - half_side, 0, width)
-                y1 = np.clip(center_y - half_side, 0, height)
-                x2 = np.clip(center_x + half_side, 0, width)
-                y2 = np.clip(center_y + half_side, 0, height)
-
-                # Crop the mask to the square
-                cropped_mask = mask[y1:y2, x1:x2]
-                masks_cropped[i] = torch.from_numpy(cropped_mask).float()
-
-            # Convert to PyTorch tensor and assign to batch
-            masks[i] = torch.from_numpy(mask).float()
-
-        return (masks,)
 
 
 def calculate_square_bounds(
@@ -538,7 +375,6 @@ class FACE_DETAILER_CROP:
 
         # Pre-allocate reusable arrays
         face_mask = np.zeros((face_size, face_size), dtype=np.float32)
-        # resize_transform = T.Resize((face_size, face_size), T.InterpolationMode.LANCZOS)
 
         face_index = 0
         for batch_idx, faces in enumerate(face_data):

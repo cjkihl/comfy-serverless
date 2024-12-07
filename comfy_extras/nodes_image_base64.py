@@ -9,6 +9,67 @@ DEFAULT_MIME_TYPE = "WEBP"
 LQIP_SIZE = 16
 IMAGE_QUALITY = 100
 
+
+def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
+    """Convert tensor [H,W,C] to PIL Image"""
+    i = 255.0 * tensor.cpu().numpy()
+    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+    return img
+
+
+def pil_to_base64(
+    image: Image.Image, mime_type: str = "JPEG", quality: int = 100
+) -> str:
+    """Convert PIL Image to base64 string"""
+    buffer = io.BytesIO()
+    image.save(buffer, format=mime_type, quality=quality)
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return img_str
+
+
+class SaveLqip:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "lqip_size": ("INT", {"default": LQIP_SIZE, "min": 1}),
+                "mime_type": ("STRING", {"default": DEFAULT_MIME_TYPE}),
+                "quality": ("INT", {"default": 20, "min": 1, "max": 100}),
+            }
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_image"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = "CJ Nodes"
+
+    def save_image(
+        self, images: torch.Tensor, lqip_size: int, mime_type: str, quality: int
+    ):
+        """Create low quality image placeholders from tensor batch"""
+        results = []
+        for image in images:
+            # Convert tensor to PIL
+            pil = tensor_to_pil(image)
+
+            # Calculate aspect ratio
+            aspect_ratio = pil.width / pil.height
+
+            # Resize maintaining aspect ratio
+            pil = pil.resize(
+                (lqip_size, round(lqip_size / aspect_ratio)), Image.BICUBIC
+            )
+
+            # Convert to base64
+            base64_str = pil_to_base64(pil, mime_type, quality)
+            results.append({"image": base64_str})
+
+        return {"ui": {"result": results}}
+
+
 class SaveImageBase64:
     def __init__(self):
         self.type = "output"
@@ -18,37 +79,29 @@ class SaveImageBase64:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "mime_type": ("STRING", {"default": "WEBP"}),
-                "quality": ("INT", { "default": 100, "min": 10, "max":100 })
+                "mime_type": ("STRING", {"default": DEFAULT_MIME_TYPE}),
+                "quality": ("INT", {"default": IMAGE_QUALITY, "min": 10, "max": 100}),
             },
         }
 
     RETURN_TYPES = ()
-    FUNCTION = "save_images"
+    FUNCTION = "save_image"
 
     OUTPUT_NODE = True
 
     CATEGORY = "CJ Nodes"
 
-    def img_to_base64(self, image: Image.Image, mime_type: str = DEFAULT_MIME_TYPE, quality: int = IMAGE_QUALITY):
-        """Convert an image to Base64 format."""
-        with io.BytesIO() as buffer:
-            image.save(buffer, format=mime_type, quality=IMAGE_QUALITY)
-            img_bytes = buffer.getvalue()
-        img_base64 = base64.b64encode(img_bytes)
-        return img_base64.decode("utf-8")
-
-    def save_images(self, images, mime_type: str = DEFAULT_MIME_TYPE, quality: int = IMAGE_QUALITY):
-        """Save a list of images in Base64 format."""
+    def save_image(self, images: torch.Tensor, mime_type: str, quality: int):
+        """Create low quality image placeholders from tensor batch"""
         results = []
         for image in images:
-            i = 255.0 * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            results.append(
-                {
-                    "image": self.img_to_base64(img, mime_type, quality),
-                }
-            )
+            # Convert tensor to PIL
+            pil = tensor_to_pil(image)
+
+            # Convert to base64
+            base64_str = pil_to_base64(pil, mime_type, quality)
+            results.append({"image": base64_str})
+
         return {"ui": {"result": results}}
 
 
@@ -83,11 +136,13 @@ class LoadImageBase64:
 
 
 NODE_CLASS_MAPPINGS = {
+    "SaveLqip": SaveLqip,
     "SaveImageBase64": SaveImageBase64,
     "LoadImageBase64": LoadImageBase64,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "SaveLqip": "Save LQIP",
     "SaveImageBase64": "Save Image Base64",
     "LoadImageBase64": "Load Image Base64",
 }

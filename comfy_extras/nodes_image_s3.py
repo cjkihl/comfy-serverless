@@ -9,6 +9,17 @@ import numpy as np
 import torch
 import time
 
+
+def create_lqip(self, image: Image.Image):
+    aspect_ratio = image.width / image.height
+    i = image.resize((16, round(16 / aspect_ratio)), Image.BICUBIC)
+    buffer = io.BytesIO()
+    i.save(buffer, format="WEBP", quality=20)
+    img_bytes = buffer.getvalue()
+    img_base64 = base64.b64encode(img_bytes)
+    return img_base64.decode("utf-8")
+
+
 def create_image_id():
     date_string = datetime.now().strftime("%Y%m%d%H%M%S")
     unique_id = str(cuid.cuid())
@@ -28,7 +39,7 @@ class SaveImageS3:
                 "prefix": ("STRING", {"default": ""}),
             },
             "optional": {
-                "segs": ("SEGS", ),
+                "segs": ("SEGS",),
             },
         }
 
@@ -39,16 +50,7 @@ class SaveImageS3:
 
     CATEGORY = "CJ Nodes"
 
-    def create_lqip(self, image: Image.Image):
-        aspect_ratio = image.width / image.height
-        i = image.resize((16, round(16 / aspect_ratio)), Image.BICUBIC)
-        buffer = io.BytesIO()
-        i.save(buffer, format="WEBP", quality=20)
-        img_bytes = buffer.getvalue()
-        img_base64 = base64.b64encode(img_bytes)
-        return img_base64.decode("utf-8")
-
-    def save_images(self, images, bucket, prefix="",segs=None):
+    def save_images(self, images, bucket, prefix="", segs=None):
         url = os.getenv("S3_ENDPOINT_URL")
         if url is None:
             raise ValueError("Environment variable S3_ENDPOINT_URL is not set")
@@ -58,7 +60,7 @@ class SaveImageS3:
             region_name="auto",  # Must be one of: wnam, enam, weur, eeur, apac, auto
         )
 
-        to_upload =[]
+        to_upload = []
         lqip_list = []
         for image in images:
             i = 255.0 * image.cpu().numpy()
@@ -69,9 +71,9 @@ class SaveImageS3:
             img.save(img_byte_arr, format="PNG")
             img_byte_arr = img_byte_arr.getvalue()
             lqip = self.create_lqip(img)
-            to_upload.append({ "bytes": img_byte_arr, "lqip": lqip, "id": image_id })
+            to_upload.append({"bytes": img_byte_arr, "lqip": lqip, "id": image_id})
             lqip_list.append(lqip)
-        
+
         results = []
         for image in to_upload:
             key = f"{prefix}/{image['id']}" if prefix else image["id"]
@@ -81,13 +83,13 @@ class SaveImageS3:
             s3.put_object(Bucket=bucket, Key=key, Body=image["bytes"])
             end_time = time.time()
             print(f"Time taken to upload image: {end_time - start_time} seconds")
-            
+
             bounding = []
             if segs is not None and len(segs) > 1:
-                for seg in segs[1]: 
+                for seg in segs[1]:
                     b = {}
-                    print(type(seg.bbox)) 
-                    print(type(seg.crop_region))   
+                    print(type(seg.bbox))
+                    print(type(seg.crop_region))
                     b["bbox"] = seg.bbox.tolist()
                     b["crop_region"] = seg.crop_region
                     bounding.append(b)
