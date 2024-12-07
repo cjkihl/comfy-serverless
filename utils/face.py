@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 import torch
@@ -7,7 +8,9 @@ import comfy.utils
 
 class FaceData:
     def __init__(self, bbox: np.ndarray, landmarks: np.ndarray):
-        self.bbox: tuple[int, int, int, int] = tuple(bbox.astype(int))
+        x1, y1, x2, y2 = bbox
+        self.bbox: tuple[int, int, int, int] = (int(x1), int(y1), int(x2), int(y2))
+
         landmarks = landmarks.astype(np.int64)
         self.landmarks: dict[str, NDArray[np.int64]] = {
             "main_features": landmarks[33:],
@@ -23,6 +26,18 @@ class FaceData:
                 [*range(33), *range(48, 51), *range(102, 105)]
             ],
         }
+
+
+def face_data_to_dict(d: FaceData) -> dict[str, list[int]]:
+    """Convert FaceData to a dictionary"""
+    result = {"bbox": [int(x) for x in d.bbox]}
+
+    # Convert landmarks separately
+    for key, value in d.landmarks.items():
+        result[key] = []
+        for point in value:
+            result[key].append(point.tolist())
+    return result
 
 
 def expand_bbox(

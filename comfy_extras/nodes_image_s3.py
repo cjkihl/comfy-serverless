@@ -2,11 +2,13 @@ import io
 import os
 from typing import Optional
 import boto3
+from botocore.exceptions import BotoCoreError
+
 from PIL import Image, ImageOps
 import numpy as np
 import torch
 import time
-from utils.face import FaceData
+from utils.face import FaceData, face_data_to_dict
 from utils.images import create_image_id, pil_to_bytes, tensor_to_pil, create_lqip
 
 
@@ -37,63 +39,81 @@ class SaveImageS3:
 
     def save_images(
         self,
-        images,
-        bucket,
-        prefix="",
-        segs=None,
+        images: torch.Tensor,
+        bucket: str,
+        prefix: str = "",
+        segs: Optional[list[dict]] = None,
         face_data: Optional[list[list[FaceData]]] = None,
-    ):
+    ) -> dict:
+        """Upload images to S3 bucket with LQIP and face data.
+
+        Args:
+            images: Tensor of images to upload
+            bucket: S3 bucket name
+            prefix: Optional prefix for S3 keys
+            segs: Optional segmentation data
+            face_data: Optional face detection data
+        """
         url = os.getenv("S3_ENDPOINT_URL")
         if url is None:
             raise ValueError("Environment variable S3_ENDPOINT_URL is not set")
-        s3 = boto3.client(
-            service_name="s3",
-            endpoint_url=url,
-            region_name="auto",  # Must be one of: wnam, enam, weur, eeur, apac, auto
-        )
 
-        to_upload = []
-        lqip_list = []
-        for image in images:
-            img = tensor_to_pil(image)
-            image_id = create_image_id()
-            lqip = create_lqip(img)
-            to_upload.append(
-                {"bytes": pil_to_bytes(img, "PNG", 100), "lqip": lqip, "id": image_id}
-            )
-            lqip_list.append(lqip)
-
-        results = []
-
-        for i, image in enumerate(to_upload):
-            key = f"{prefix}/{image['id']}" if prefix else image["id"]
-
-            start_time = time.time()
-            # Upload image to S3 bucket
-            s3.put_object(Bucket=bucket, Key=key, Body=image["bytes"])
-            end_time = time.time()
-            print(f"Time taken to upload image: {end_time - start_time} seconds")
-
-            f = []
-            if face_data is not None:
-                for face in face_data[i]:
-                    b = {}
-                    b["landmarks"] = face.landmarks
-                    b["bbox"] = face.bbox
-                    f.append(b)
-
-            results.append(
-                {
-                    "key": key,
-                    "image_id": image["id"],
-                    "prefix": prefix,
-                    "segs": [],
-                    "face_data": f,
-                    "lqip": image["lqip"],
-                }
+        try:
+            s3 = boto3.client(
+                service_name="s3",
+                endpoint_url=url,
+                region_name="auto",
             )
 
-        return {"ui": {"result": results}}
+            to_upload = []
+            for image in images:
+                img = tensor_to_pil(image)
+                image_id = create_image_id()
+                lqip = create_lqip(img)
+                to_upload.append(
+                    {
+                        "bytes": pil_to_bytes(img, "PNG", 100),
+                        "lqip": lqip,
+                        "id": image_id,
+                    }
+                )
+
+            results = []
+            for i, image in enumerate(to_upload):
+                key = f"{prefix}/{image['id']}" if prefix else image["id"]
+
+                try:
+                    start_time = time.time()
+                    s3.put_object(Bucket=bucket, Key=key, Body=image["bytes"])
+                    end_time = time.time()
+                    print(
+                        f"Time taken to upload image: {end_time - start_time} seconds"
+                    )
+
+                    f = []
+                    if face_data is not None and i < len(face_data):
+                        for face in face_data[i]:
+                            f.append(face_data_to_dict(face))
+
+                    results.append(
+                        {
+                            "key": key,
+                            "image_id": image["id"],
+                            "prefix": prefix,
+                            "segs": segs[i] if segs else [],
+                            "face_data": f,
+                            "lqip": image["lqip"],
+                        }
+                    )
+
+                except BotoCoreError as e:
+                    print(f"Failed to upload image {key}: {str(e)}")
+                    continue
+
+            return {"ui": {"result": results}}
+
+        except Exception as e:
+            raise RuntimeError(f"S3 upload failed: {str(e)}")
 
 
 class LoadImageS3:
