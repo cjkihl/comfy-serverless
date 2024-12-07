@@ -1,29 +1,13 @@
-import base64
 import io
-from datetime import datetime
 import os
-import cuid
+from typing import Optional
 import boto3
 from PIL import Image, ImageOps
 import numpy as np
 import torch
 import time
-
-
-def create_lqip(self, image: Image.Image):
-    aspect_ratio = image.width / image.height
-    i = image.resize((16, round(16 / aspect_ratio)), Image.BICUBIC)
-    buffer = io.BytesIO()
-    i.save(buffer, format="WEBP", quality=20)
-    img_bytes = buffer.getvalue()
-    img_base64 = base64.b64encode(img_bytes)
-    return img_base64.decode("utf-8")
-
-
-def create_image_id():
-    date_string = datetime.now().strftime("%Y%m%d%H%M%S")
-    unique_id = str(cuid.cuid())
-    return f"{date_string}-{unique_id}"
+from utils.face import FaceData
+from utils.images import create_image_id, pil_to_bytes, tensor_to_pil, create_lqip
 
 
 class SaveImageS3:
@@ -40,6 +24,7 @@ class SaveImageS3:
             },
             "optional": {
                 "segs": ("SEGS",),
+                "face_data": ("FACEDATA",),
             },
         }
 
@@ -50,7 +35,14 @@ class SaveImageS3:
 
     CATEGORY = "CJ Nodes"
 
-    def save_images(self, images, bucket, prefix="", segs=None):
+    def save_images(
+        self,
+        images,
+        bucket,
+        prefix="",
+        segs=None,
+        face_data: Optional[list[list[FaceData]]] = None,
+    ):
         url = os.getenv("S3_ENDPOINT_URL")
         if url is None:
             raise ValueError("Environment variable S3_ENDPOINT_URL is not set")
@@ -63,19 +55,17 @@ class SaveImageS3:
         to_upload = []
         lqip_list = []
         for image in images:
-            i = 255.0 * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            img = tensor_to_pil(image)
             image_id = create_image_id()
-            # Convert the image to bytes
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format="PNG")
-            img_byte_arr = img_byte_arr.getvalue()
-            lqip = self.create_lqip(img)
-            to_upload.append({"bytes": img_byte_arr, "lqip": lqip, "id": image_id})
+            lqip = create_lqip(img)
+            to_upload.append(
+                {"bytes": pil_to_bytes(img, "PNG", 100), "lqip": lqip, "id": image_id}
+            )
             lqip_list.append(lqip)
 
         results = []
-        for image in to_upload:
+
+        for i, image in enumerate(to_upload):
             key = f"{prefix}/{image['id']}" if prefix else image["id"]
 
             start_time = time.time()
@@ -84,22 +74,21 @@ class SaveImageS3:
             end_time = time.time()
             print(f"Time taken to upload image: {end_time - start_time} seconds")
 
-            bounding = []
-            if segs is not None and len(segs) > 1:
-                for seg in segs[1]:
+            f = []
+            if face_data is not None:
+                for face in face_data[i]:
                     b = {}
-                    print(type(seg.bbox))
-                    print(type(seg.crop_region))
-                    b["bbox"] = seg.bbox.tolist()
-                    b["crop_region"] = seg.crop_region
-                    bounding.append(b)
+                    b["landmarks"] = face.landmarks
+                    b["bbox"] = face.bbox
+                    f.append(b)
 
             results.append(
                 {
                     "key": key,
                     "image_id": image["id"],
                     "prefix": prefix,
-                    "segs": bounding,
+                    "segs": [],
+                    "face_data": f,
                     "lqip": image["lqip"],
                 }
             )

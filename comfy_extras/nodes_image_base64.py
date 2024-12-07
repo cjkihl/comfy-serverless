@@ -3,28 +3,11 @@ import io
 from PIL import Image, ImageOps
 import numpy as np
 import torch
-
+from utils.images import create_lqip, pil_to_base64, tensor_to_pil
 
 DEFAULT_MIME_TYPE = "WEBP"
 LQIP_SIZE = 16
 IMAGE_QUALITY = 100
-
-
-def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
-    """Convert tensor [H,W,C] to PIL Image"""
-    i = 255.0 * tensor.cpu().numpy()
-    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-    return img
-
-
-def pil_to_base64(
-    image: Image.Image, mime_type: str = "JPEG", quality: int = 100
-) -> str:
-    """Convert PIL Image to base64 string"""
-    buffer = io.BytesIO()
-    image.save(buffer, format=mime_type, quality=quality)
-    img_str = base64.b64encode(buffer.getvalue()).decode()
-    return img_str
 
 
 class SaveLqip:
@@ -54,18 +37,8 @@ class SaveLqip:
         for image in images:
             # Convert tensor to PIL
             pil = tensor_to_pil(image)
-
-            # Calculate aspect ratio
-            aspect_ratio = pil.width / pil.height
-
-            # Resize maintaining aspect ratio
-            pil = pil.resize(
-                (lqip_size, round(lqip_size / aspect_ratio)), Image.BICUBIC
-            )
-
-            # Convert to base64
-            base64_str = pil_to_base64(pil, mime_type, quality)
-            results.append({"image": base64_str})
+            lqip = create_lqip(pil, lqip_size, mime_type, quality)
+            results.append({"image": lqip})
 
         return {"ui": {"result": results}}
 
