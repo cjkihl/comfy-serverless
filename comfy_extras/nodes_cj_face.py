@@ -183,6 +183,77 @@ LANDMARK_REGIONS = [
 ]
 
 
+class FACE_CROP:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "face_data": ("FACEDATA",),
+                "padding": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
+            },
+            "optional": {
+                "face_size": (
+                    "INT",
+                    {"default": 512, "min": 100, "max": 1024, "step": 1},
+                ),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "FACECROPDATA")
+    RETURN_NAMES = ("face_images", "face_crop_data")
+    FUNCTION = "get_face_crop"
+    CATEGORY = "CJ Face Nodes"
+
+    def get_face_crop(
+        self,
+        images: torch.Tensor,  # (B, H, W, C)
+        face_data: list[list[FaceData]],  # List of list of FaceData
+        padding: int,  # Padding percent around face
+        face_size: int = 1024,
+    ) -> tuple[torch.Tensor, list[tuple[int, int, int, int, int]]]:
+
+        # Early validation
+        batch_size, images_height, images_width, _ = images.shape
+        if batch_size != len(face_data):
+            raise ValueError("Number of images must match number of face lists")
+
+        # Pre-calculate total faces for tensor allocation
+        total_faces = sum(len(faces) for faces in face_data)
+
+        face_images = torch.zeros((total_faces, face_size, face_size, 3))
+        face_crop_data: list[tuple[int, int, int, int, int]] = []
+
+        face_index = 0
+        for batch_idx, faces in enumerate(face_data):
+            for face in faces:
+                # Get boundingbox
+                x1, y1, x2, y2 = face.bbox
+
+                # Get square bounding box
+                x1, y1, x2, y2 = calculate_square_bounds(
+                    x2 - x1,
+                    y2 - y1,
+                    x1 + (x2 - x1) // 2,
+                    y1 + (y2 - y1) // 2,
+                    padding,
+                    images_width,
+                    images_height,
+                )
+
+                # Crop and resize face image
+                face_image = images[batch_idx, y1:y2, x1:x2]  # [H, W, C]
+                face_image = resize_face_image(face_image, face_size)
+
+                # Store results
+                face_images[face_index] = face_image
+
+                face_crop_data.append((batch_idx, x1, y1, x2, y2))
+                face_index += 1
+
+        return face_images[:face_index], face_crop_data
+
+
 class FACE_DETAILER_CROP:
     @classmethod
     def INPUT_TYPES(s):
@@ -346,6 +417,7 @@ NODE_CLASS_MAPPINGS = {
     "InsightFaceModelLoader": INSIGHFACE_MODEL_LOADER,
     "GetFaces": GET_FACES,
     "HasFaces": HAS_FACES,
+    "FaceCrop": FACE_CROP,
     "FaceDetailerCrop": FACE_DETAILER_CROP,
     "FaceDetailerStitch": FACE_DETAILER_STITCH,
 }
@@ -354,6 +426,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InsightFaceModelLoader": "InsightFace Model Loader",
     "GetFaces": "Get Faces",
     "HasFaces": "Has Faces",
+    "FaceCrop": "Face Crop",
     "FaceDetailerCrop": "Face Detailer Crop #1",
     "FaceDetailerStitch": "Face Detailer Stitch #2",
 }
