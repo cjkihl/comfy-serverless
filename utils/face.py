@@ -7,7 +7,7 @@ import comfy.utils
 
 
 class FaceData:
-    def __init__(self, bbox: np.ndarray, landmarks: np.ndarray):
+    def __init__(self, bbox: np.ndarray, landmarks: np.ndarray, kps: np.ndarray):
         x1, y1, x2, y2 = bbox
         self.bbox: tuple[int, int, int, int] = (int(x1), int(y1), int(x2), int(y2))
 
@@ -25,6 +25,13 @@ class FaceData:
             "outline_forehead": landmarks[
                 [*range(33), *range(48, 51), *range(102, 105)]
             ],
+        }
+        self.kps: dict[str, tuple[int, int]] = {
+            "left_eye": kps[1],
+            "right_eye": kps[0],
+            "nose": kps[2],
+            "left_mouth": kps[3],
+            "right_mouth": kps[4],
         }
 
 

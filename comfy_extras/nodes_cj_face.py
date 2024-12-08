@@ -80,7 +80,7 @@ class GET_FACES:
                 "insightface": ("INSIGHTFACE",),
             },
             "optional": {
-                "max_num": ("INT", {"default": 100, "min": 0, "max": 1000, "step": 1}),
+                "max_num": ("INT", {"default": 10, "min": 0, "max": 1000, "step": 1}),
                 "min_face_size": (
                     "INT",
                     {"default": 0, "min": 0, "max": 4096, "step": 1},
@@ -107,14 +107,16 @@ class GET_FACES:
 
         for i, img in enumerate(images):
             # Get faces for single image
-            faces: list[Face] = insightface.get(np.array(tensor_to_image(img)), max_num)
+            faces: list[Face] = insightface.get(
+                np.array(tensor_to_image(img)), max(max_num, 5)
+            )
             if faces is None:
-                batch_face_data.append([])
                 continue
 
             # Create and sort face data
             face_data = [
-                FaceData(face["bbox"], face["landmark_2d_106"]) for face in faces
+                FaceData(face["bbox"], face["landmark_2d_106"], face["kps"])
+                for face in faces
             ]
 
             # Filter faces by minimum size if needed
@@ -136,6 +138,10 @@ class GET_FACES:
                 key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]),
                 reverse=True,
             )
+
+            # Select the first max_num faces
+            face_data = face_data[:max_num]
+
             batch_face_data[i] = face_data
 
         return (batch_face_data,)
