@@ -21,19 +21,11 @@ add-detail-xl.safetensors
 
  # Download model from CivitAI
 ```sh 
-model_name="ponyRealism_V22MainVAE.safetensors"
-url="https://civitai.com/api/download/models/914390?type=Model&format=SafeTensor&size=full&fp=fp16"
+model_name="ponyDiffusionV6XL_v6.safetensors"
+url="https://civitai.com/api/download/models/290640?type=Model&format=SafeTensor&size=pruned&fp=fp16"
 bearer_token="96883c9da9f368d8b1d00554fe2b1c3a"
 curl -L -o ./${model_name} -H "Authorization: Bearer ${bearer_token}" -X GET ${url}
 ```
-
-```sh 
-model_name="easynegative.safetensors"
-url="https://civitai.com/api/download/models/9208?type=Model&format=SafeTensor&size=full&fp=fp16"
-bearer_token="96883c9da9f368d8b1d00554fe2b1c3a"
-curl -L -o ./${model_name} -H "Authorization: Bearer ${bearer_token}" -X GET ${url}
-```
-
 
 Upload to R2
 
