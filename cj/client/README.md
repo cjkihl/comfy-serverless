@@ -140,7 +140,6 @@ type ComfyClientConfig = {
   adapter: WebSocketAdapter;      // Bun or Browser adapter
   auth?: {                       // Authentication
     jwt?: string;
-    apiKey?: string;
   };
   reconnect?: ReconnectConfig;    // Reconnection settings
   timeout?: TimeoutConfig;       // Timeout settings

@@ -48,6 +48,14 @@ export class ComfyReconnectError extends Error {
 	}
 }
 
+// Union type for all ComfyUI client errors
+export type ComfyClientError =
+	| ComfyConnectionError
+	| ComfyTimeoutError
+	| ComfyAuthError
+	| ComfyPromptError
+	| ComfyReconnectError;
+
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
 
 export class Logger {

@@ -1,6 +1,7 @@
 import type { WebSocketAdapter } from "./adapters/types";
 import { env } from "./env";
 import {
+	type ComfyClientError,
 	ComfyConnectionError,
 	ComfyReconnectError,
 	ComfyTimeoutError,
@@ -8,6 +9,7 @@ import {
 } from "./errors";
 import type {
 	CollectOptions,
+	ComfyMessage,
 	ComfyPrompt,
 	ComfyWsMessage,
 	ConnectionState,
@@ -23,20 +25,20 @@ import { err, ok } from "./types";
 export type ComfyClientConfig = {
 	url: string;
 	adapter: WebSocketAdapter;
-	auth?: { jwt?: string; apiKey?: string };
+	auth?: { jwt?: string };
 	reconnect?: Partial<ReconnectConfig>;
 	timeout?: Partial<TimeoutConfig>;
 	logging?: Partial<LogConfig>;
-	onMessage?: (msg: unknown) => void;
-	onError?: (err: Error) => void;
+	onMessage?: (msg: ComfyMessage) => void;
+	onError?: (err: ComfyClientError) => void;
 	onConnectionChange?: (state: ConnectionState) => void;
 };
 
 type RequiredComfyClientConfig = Required<
 	Omit<ComfyClientConfig, "onMessage" | "onError" | "onConnectionChange">
 > & {
-	onMessage?: (msg: unknown) => void;
-	onError?: (err: Error) => void;
+	onMessage?: (msg: ComfyMessage) => void;
+	onError?: (err: ComfyClientError) => void;
 	onConnectionChange?: (state: ConnectionState) => void;
 };
 
@@ -87,11 +89,13 @@ export class ComfyClient {
 	private setupAdapterHandlers(): void {
 		this.config.adapter.onMessage((data) => {
 			try {
-				let message: unknown;
+				let message: ComfyMessage;
 				if (typeof data === "string") {
-					message = JSON.parse(data);
+					message = JSON.parse(data) as ComfyMessage;
+				} else if (data instanceof ArrayBuffer) {
+					message = { data, type: "binary" };
 				} else {
-					message = data;
+					message = data as ComfyMessage;
 				}
 
 				this.logger.debug("Received message:", message);

@@ -10,6 +10,7 @@ export type {
 export { ComfyClient, type ComfyClientConfig } from "./client.js";
 // Environment configuration
 export { env } from "./env.js";
+export type { ComfyClientError } from "./errors.js";
 // Errors
 export {
 	ComfyAuthError,
@@ -21,15 +22,29 @@ export {
 } from "./errors.js";
 // Types
 export type {
+	BinaryMessage,
 	CollectOptions,
+	ComfyMessage,
 	ComfyNode,
 	ComfyPrompt,
 	ComfyWsMessage,
+	ErrorMessage,
 	EventCollection,
+	ExecutedMessage,
+	ExecutingMessage,
+	ExecutionCachedMessage,
+	ExecutionErrorMessage,
+	ExecutionInterruptedMessage,
+	ExecutionStartMessage,
+	ExecutionSuccessMessage,
 	LogConfig,
+	ProgressMessage,
+	ProgressStateMessage,
 	PromptAccepted,
+	PromptAcceptedMessage,
 	ReconnectConfig,
 	Result,
+	StatusMessage,
 	SubmitOptions,
 	SubmitPromptBody,
 	TimeoutConfig,
