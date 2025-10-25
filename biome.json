@@ -12,26 +12,13 @@
 	},
 	"files": {
 		"includes": [
-			"**/*.ts",
-			"**/*.tsx",
-			"**/*.json",
+			"cj/**/*.ts",
+			"cj/**/*.tsx",
+			"cj/**/*.json",
 			"!**/node_modules",
-			"!**/.git",
-			"!**/.gemini",
-			"!**/.claude",
-			"!**/.changeset",
-			"!**/output",
-			"!**/.vscode",
-			"!**/.next",
+			"!node_modules",
 			"!**/dist",
-			"!**/.turbo",
-			"!**/package.json",
-			"!**/*.gen.ts",
-			"!**/coverage",
-			"!**/generated",
-			"!**/.reports",
-			"!**/obj",
-			"!**/bin"
+			"!**/package.json"
 		]
 	},
 	"formatter": {

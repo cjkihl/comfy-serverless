@@ -41,9 +41,9 @@ elif [[ -f "$CODE_DIR/$REQUIREMENTS_PATH" ]]; then
 fi
 
 # Install proxy dependencies
-if [[ -d "$CODE_DIR/proxy" ]]; then
+if [[ -d "$CODE_DIR/cj/proxy" ]]; then
     echo "[container_boot] Installing proxy dependencies..."
-    (cd "$CODE_DIR/proxy" && bun install)
+    (cd "$CODE_DIR/cj/proxy" && bun install)
 fi
 
 # Ensure models mount and symlink

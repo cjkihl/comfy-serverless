@@ -10,38 +10,29 @@ const config: KnipConfig = {
 		"**/*.d.ts",
 		"**/examples/**",
 		"**/tests/**",
+		"**/.pixi/**",
 	],
 	ignoreDependencies: [
-		"@biomejs/biome",
 		"@cjkihl/create-exports",
-		"@cjkihl/tsconfig",
-		"@cjkihl/with-env",
-		"@manypkg/cli",
-		"sort-package-json",
-		"@types/bun",
-		"@types/node",
-		"typescript",
 	],
 	ignoreExportsUsedInFile: true,
 	workspaces: {
-		client: {
+		"cj/client": {
 			entry: ["src/index.ts"],
 			ignoreDependencies: ["bun-types"],
 			project: [
 				"src/**/*.{ts,tsx,js,jsx}",
+				"tests/**/*.{ts,tsx,js,jsx}",
 				"!src/**/*.test.*",
 				"!src/**/*.spec.*",
-				"!tests/**",
 			],
 		},
-		proxy: {
+		"cj/proxy": {
 			entry: ["src/server.ts"],
-			ignoreDependencies: ["@types/jsonwebtoken"],
 			project: [
 				"src/**/*.{ts,tsx,js,jsx}",
 				"!src/**/*.test.*",
 				"!src/**/*.spec.*",
-				"!tests/**",
 			],
 		},
 	},

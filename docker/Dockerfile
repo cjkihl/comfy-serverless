@@ -148,6 +148,9 @@ WORKDIR ${CODE_DIR}
 # Install all requirements and extensions during build
 RUN pixi run bash -lc './scripts/install_requirements.sh'
 
+# Install proxy dependencies (Bun is already installed in base image)
+RUN cd ${CODE_DIR}/cj/proxy && bun install
+
 # Use a lightweight entrypoint that skips git operations
 COPY docker/entrypoint-installed.sh /entrypoint-installed.sh
 RUN chmod +x /entrypoint-installed.sh

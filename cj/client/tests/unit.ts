@@ -62,7 +62,9 @@ class MockWebSocket {
 			// Call both legacy handler and addEventListener handlers
 			if (this.onopen) this.onopen();
 			// Call addEventListener handlers
-			this.openHandlers.forEach((handler) => handler());
+			this.openHandlers.forEach((handler) => {
+				handler();
+			});
 		}, 10);
 	}
 
@@ -82,7 +84,9 @@ class MockWebSocket {
 		const closeEvent = { code: 1000, reason: "Normal closure" };
 		if (this.onclose) this.onclose(closeEvent);
 		// Call addEventListener handlers
-		this.closeHandlers.forEach((handler) => handler(closeEvent));
+		this.closeHandlers.forEach((handler) => {
+			handler(closeEvent);
+		});
 	}
 
 	addEventListener(event: string, handler: unknown): void {
@@ -129,8 +133,7 @@ class MockWebSocket {
 const OriginalWebSocket = global.WebSocket;
 
 // Mock Bun WebSocket globally
-// Type assertion needed because global is not properly typed for WebSocket assignment
-// We use 'as any' here because we're intentionally replacing the global WebSocket for testing
+// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 (global as any).WebSocket = MockWebSocket;
 
 // Mock adapter for testing
@@ -391,6 +394,7 @@ async function testComfyClientValidation(): Promise<void> {
 
 async function testBunWebSocketAdapter(): Promise<void> {
 	// Restore real WebSocket for this test
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = OriginalWebSocket;
 
 	const adapter = new BunWebSocketAdapter();
@@ -425,11 +429,13 @@ async function testBunWebSocketAdapter(): Promise<void> {
 	adapter.close();
 
 	// Restore mock WebSocket for other tests
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = MockWebSocket;
 }
 
 async function testBrowserWebSocketAdapter(): Promise<void> {
 	// Restore real WebSocket for this test
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = OriginalWebSocket;
 
 	const adapter = new BrowserWebSocketAdapter();
@@ -465,6 +471,7 @@ async function testBrowserWebSocketAdapter(): Promise<void> {
 	adapter.close();
 
 	// Restore mock WebSocket for other tests
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = MockWebSocket;
 }
 
@@ -487,6 +494,7 @@ async function testErrorHandling(): Promise<void> {
 
 	// Test connection to invalid URL with real adapter
 	// Restore real WebSocket for this test
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = OriginalWebSocket;
 
 	const realAdapter = new BunWebSocketAdapter();
@@ -502,6 +510,7 @@ async function testErrorHandling(): Promise<void> {
 	}
 
 	// Restore mock WebSocket for other tests
+	// biome-ignore lint/suspicious/noExplicitAny: We're intentionally replacing the global WebSocket for testing
 	(global as any).WebSocket = MockWebSocket;
 }
 

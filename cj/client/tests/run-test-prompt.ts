@@ -134,7 +134,7 @@ async function main() {
 			base64Images.forEach((base64Image, index) => {
 				// Extract the base64 data and mime type
 				const match = base64Image.match(/^data:image\/(\w+);base64,(.+)$/);
-				if (match && match[1] && match[2]) {
+				if (match?.[1] && match[2]) {
 					const mimeType = match[1];
 					const base64Data = match[2];
 					const outputPath = join(

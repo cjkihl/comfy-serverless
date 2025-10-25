@@ -39,8 +39,8 @@
 	"author": "CJ",
 	"license": "MIT",
 	"dependencies": {
-		"@t3-oss/env-core": "^0.13.8",
-		"zod": "^4.1.12"
+		"@t3-oss/env-core": "^0.13.4",
+		"zod": "^3.25.2"
 	},
 	"peerDependencies": {
 		"bun-types": "*"
