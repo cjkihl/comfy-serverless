@@ -136,11 +136,23 @@ export type ExecutionStartMessage = {
 	};
 };
 
+// Error codes matching the proxy (must be kept in sync with cj/proxy/src/types.ts)
+export const ErrorCode = {
+	INVALID: "INVALID",
+	MAX_CONNECTIONS_EXCEEDED: "MAX_CONNECTIONS_EXCEEDED",
+	QUEUE_FULL: "QUEUE_FULL",
+	SESSION_NOT_READY: "SESSION_NOT_READY",
+	TIMEOUT: "TIMEOUT",
+	UNKNOWN_ERROR: "UNKNOWN_ERROR",
+} as const;
+
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
 export type ErrorMessage = {
 	type: "error";
 	data: {
 		message: string;
-		code?: string;
+		code?: ErrorCode;
 	};
 };
 

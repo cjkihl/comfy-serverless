@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "build": "bun -F '*' build",
+    "check-error-codes": "bun run scripts/check-error-codes.ts",
     "clean": "git clean -fxd -e .env.local",
     "dev": "bun -F '*' dev",
     "format": "biome format .",

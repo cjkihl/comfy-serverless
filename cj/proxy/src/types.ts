@@ -41,18 +41,16 @@ export type ProxyError = {
 	context?: Record<string, unknown>;
 };
 
-export enum ErrorCode {
-	INVALID_WEBHOOK_URL = "INVALID_WEBHOOK_URL",
-	MAX_CONNECTIONS_EXCEEDED = "MAX_CONNECTIONS_EXCEEDED",
-	QUEUE_FULL = "QUEUE_FULL",
-	COMFY_UNAVAILABLE = "COMFY_UNAVAILABLE",
-	SESSION_NOT_READY = "SESSION_NOT_READY",
-	INVALID_PROMPT = "INVALID_PROMPT",
-	EXECUTION_ERROR = "EXECUTION_ERROR",
-	CONNECTION_ERROR = "CONNECTION_ERROR",
-	TIMEOUT = "TIMEOUT",
-	UNKNOWN = "UNKNOWN",
-}
+export const ErrorCode = {
+	INVALID: "INVALID",
+	MAX_CONNECTIONS_EXCEEDED: "MAX_CONNECTIONS_EXCEEDED",
+	QUEUE_FULL: "QUEUE_FULL",
+	SESSION_NOT_READY: "SESSION_NOT_READY",
+	TIMEOUT: "TIMEOUT",
+	UNKNOWN_ERROR: "UNKNOWN_ERROR",
+} as const;
+
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 export type ComfyWsMessage = { type: string; data: unknown };
 

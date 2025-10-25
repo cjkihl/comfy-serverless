@@ -181,7 +181,7 @@ async function handleSubmitForUser(userId: string, body: SubmitPromptBody) {
 			`❌ [HTTP] ComfyUI server may be unreachable at ${env.COMFY_URL}`,
 		);
 		console.error("❌ [HTTP] Please ensure ComfyUI is running and accessible");
-		throw new Error(`ComfyUI error: ${JSON.stringify(errorData)}`);
+		throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
 	}
 
 	// Success - record it and process any queued prompts
@@ -364,13 +364,16 @@ const wsHandler: WebSocketHandler<WsData> = {
 							error,
 						);
 						const errorMsg = (error as Error).message;
-						let errorCode = ErrorCode.UNKNOWN;
+						let errorCode: ErrorCode = ErrorCode.UNKNOWN_ERROR;
 						let retryable = false;
 
 						if (errorMsg.includes("invalid webhook")) {
-							errorCode = ErrorCode.INVALID_WEBHOOK_URL;
-						} else if (errorMsg.includes("unavailable")) {
-							errorCode = ErrorCode.COMFY_UNAVAILABLE;
+							errorCode = ErrorCode.INVALID;
+						} else if (
+							errorMsg.includes("unavailable") ||
+							errorMsg.includes("timed out")
+						) {
+							errorCode = ErrorCode.UNKNOWN_ERROR;
 							retryable = true;
 						} else if (errorMsg.includes("queue")) {
 							errorCode = ErrorCode.QUEUE_FULL;
@@ -388,13 +391,13 @@ const wsHandler: WebSocketHandler<WsData> = {
 			}
 		} catch (e) {
 			const errorMsg = (e as Error).message;
-			let errorCode = ErrorCode.UNKNOWN;
+			let errorCode: ErrorCode = ErrorCode.UNKNOWN_ERROR;
 			let retryable = false;
 
 			if (errorMsg.includes("connections per user")) {
 				errorCode = ErrorCode.MAX_CONNECTIONS_EXCEEDED;
 			} else if (errorMsg.includes("connection")) {
-				errorCode = ErrorCode.CONNECTION_ERROR;
+				errorCode = ErrorCode.UNKNOWN_ERROR;
 				retryable = true;
 			}
 
@@ -516,16 +519,22 @@ const wsHandler: WebSocketHandler<WsData> = {
 										.exception_type,
 									node_id: (data as { node_id?: string }).node_id,
 									prompt_id: (data as { prompt_id?: string }).prompt_id,
+									traceback: (data as { traceback?: string[] }).traceback,
 								};
+								// Log full execution error details server-side
+								console.error("❌ [EXECUTION ERROR]", {
+									exceptionMessage: norm.exception_message,
+									exceptionType: norm.exception_type,
+									nodeId: norm.node_id,
+									promptId: norm.prompt_id,
+									traceback: norm.traceback,
+									userId,
+								});
 								ws.send(
 									createErrorJSON(
 										norm.exception_message || "Execution error",
-										ErrorCode.EXECUTION_ERROR,
+										ErrorCode.UNKNOWN_ERROR,
 										{
-											context: {
-												exception_type: norm.exception_type,
-												node_id: norm.node_id,
-											},
 											promptId: norm.prompt_id,
 											userId,
 										},
@@ -622,17 +631,13 @@ const wsHandler: WebSocketHandler<WsData> = {
 			}
 
 			const errorMsg = (e as Error).message;
-			let errorCode = ErrorCode.CONNECTION_ERROR;
+			let errorCode: ErrorCode = ErrorCode.UNKNOWN_ERROR;
 			if (errorMsg.includes("connections")) {
 				errorCode = ErrorCode.MAX_CONNECTIONS_EXCEEDED;
 			}
 
 			ws.send(
 				createErrorJSON(errorMsg, errorCode, {
-					context: {
-						comfyUrl: env.COMFY_URL,
-						hint: "Ensure ComfyUI is running and accessible",
-					},
 					retryable: true,
 					userId,
 				}),

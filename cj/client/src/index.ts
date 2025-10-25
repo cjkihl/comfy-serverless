@@ -49,4 +49,4 @@ export type {
 	SubmitPromptBody,
 	TimeoutConfig,
 } from "./types.js";
-export { err, ok } from "./types.js";
+export { ErrorCode, err, ok } from "./types.js";
