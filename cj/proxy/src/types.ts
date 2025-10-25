@@ -28,12 +28,42 @@ export type ProxyWsInbound =
 
 export type ProxyWsOutbound =
 	| { type: "prompt_accepted"; data: PromptAccepted }
-	| { type: "error"; data: { message: string; code?: string } }
+	| { type: "error"; data: ProxyError }
 	| { type: string; data: unknown };
+
+export type ProxyError = {
+	message: string;
+	code?: ErrorCode;
+	userId?: string;
+	promptId?: string;
+	timestamp?: number;
+	retryable?: boolean;
+	context?: Record<string, unknown>;
+};
+
+export enum ErrorCode {
+	INVALID_WEBHOOK_URL = "INVALID_WEBHOOK_URL",
+	MAX_CONNECTIONS_EXCEEDED = "MAX_CONNECTIONS_EXCEEDED",
+	QUEUE_FULL = "QUEUE_FULL",
+	COMFY_UNAVAILABLE = "COMFY_UNAVAILABLE",
+	SESSION_NOT_READY = "SESSION_NOT_READY",
+	INVALID_PROMPT = "INVALID_PROMPT",
+	EXECUTION_ERROR = "EXECUTION_ERROR",
+	CONNECTION_ERROR = "CONNECTION_ERROR",
+	TIMEOUT = "TIMEOUT",
+	UNKNOWN = "UNKNOWN",
+}
 
 export type ComfyWsMessage = { type: string; data: unknown };
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
+
+// Extended WebSocket type for Bun's ServerWebSocket that includes custom properties
+import type { ServerWebSocket } from "bun";
+
+export interface ExtendedServerWebSocket<T> extends ServerWebSocket<T> {
+	userId?: string;
+}
 
 export type Session = {
 	userId: string;
@@ -41,7 +71,7 @@ export type Session = {
 	sid?: string; // Comfy-assigned session id (from status)
 	currentPromptId?: string;
 	comfyWs?: WebSocket;
-	clientWs?: WebSocket;
+	clientWs?: ExtendedServerWebSocket<unknown>;
 	lastActiveAt: number;
 	connectionState: ConnectionState;
 	webhooks?: Record<string, { url: string; secret?: string }>; // prompt_id -> webhook config

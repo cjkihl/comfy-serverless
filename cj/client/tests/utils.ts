@@ -14,7 +14,7 @@ import { testPrompt } from "./test-prompt";
  */
 export function generateUniqueUserId(prefix = "test-user"): string {
 	const timestamp = Date.now();
-	const random = Math.random().toString(36).substr(2, 9);
+	const random = Math.random().toString(36).substring(2, 9);
 	return `${prefix}-${timestamp}-${random}`;
 }
 

@@ -406,7 +406,9 @@ async function testConnectionLimit(): Promise<void> {
 
 		const connectResult3 = await client3.connect();
 		if (!connectResult3.success) {
-			throw new Error(`Third connection should have succeeded after disconnect: ${connectResult3.error}`);
+			throw new Error(
+				`Third connection should have succeeded after disconnect: ${connectResult3.error}`,
+			);
 		}
 
 		console.log("✅ Third connection succeeded after disconnect");

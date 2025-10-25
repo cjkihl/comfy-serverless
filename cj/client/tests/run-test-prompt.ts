@@ -3,7 +3,7 @@
 /**
  * Script to run the test prompt and save the output image
  * This allows visual comparison of the generated image
- * 
+ *
  * ⚠️ IMPORTANT: ComfyUI runs on a REMOTE server!
  * Make sure COMFY_URL is set in your proxy environment
  */
@@ -13,8 +13,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "../src/env";
 import { BunWebSocketAdapter, ComfyClient } from "../src/index";
-import { generateTestJWT, generateUniqueUserId } from "./utils";
 import { testPrompt } from "./test-prompt";
+import { generateTestJWT, generateUniqueUserId } from "./utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,7 +47,7 @@ async function main() {
 		// Submit prompt
 		console.log("📤 Submitting prompt...");
 		console.log("   Prompt has", Object.keys(testPrompt).length, "nodes");
-		
+
 		const submitResult = await client.submitPrompt(testPrompt, {
 			promptId: `test-prompt-${Date.now()}`,
 		});
@@ -86,22 +86,32 @@ async function main() {
 		if (binaryData.length > 0) {
 			console.log("\n💾 Saving output images (binary)...");
 			binaryData.forEach((data, index) => {
-				const outputPath = join(__dirname, `bear-kid-generated-${index + 1}.webp`);
+				const outputPath = join(
+					__dirname,
+					`bear-kid-generated-${index + 1}.webp`,
+				);
 				writeFileSync(outputPath, Buffer.from(data));
 				console.log(`✅ Saved: ${outputPath}`);
 			});
 		}
-		
+
 		// Extract base64 images from events (SaveImageBase64 outputs base64 strings)
 		const base64Images: string[] = [];
 		events.forEach((event) => {
 			if (typeof event === "object" && event !== null && "type" in event) {
 				const typedEvent = event as { type: string; data?: unknown };
 				if (typedEvent.type === "executed" && typedEvent.data) {
-					const data = typedEvent.data as { node?: string; output?: { result?: unknown[] } };
+					const data = typedEvent.data as {
+						node?: string;
+						output?: { result?: unknown[] };
+					};
 					if (data.output?.result && Array.isArray(data.output.result)) {
 						data.output.result.forEach((item) => {
-							if (typeof item === "object" && item !== null && "image" in item) {
+							if (
+								typeof item === "object" &&
+								item !== null &&
+								"image" in item
+							) {
 								const imageData = (item as { image?: string }).image;
 								if (typeof imageData === "string") {
 									// Handle both data: URLs and raw base64 strings
@@ -118,7 +128,7 @@ async function main() {
 				}
 			}
 		});
-		
+
 		if (base64Images.length > 0) {
 			console.log("\n💾 Saving output images (base64)...");
 			base64Images.forEach((base64Image, index) => {
@@ -127,13 +137,18 @@ async function main() {
 				if (match && match[1] && match[2]) {
 					const mimeType = match[1];
 					const base64Data = match[2];
-					const outputPath = join(__dirname, `bear-kid-generated-${index + 1}.${mimeType}`);
+					const outputPath = join(
+						__dirname,
+						`bear-kid-generated-${index + 1}.${mimeType}`,
+					);
 					writeFileSync(outputPath, Buffer.from(base64Data, "base64"));
 					console.log(`✅ Saved: ${outputPath}`);
 				}
 			});
 		} else if (binaryData.length === 0) {
-			console.log("\n⚠️  No images received. Check that SaveImageBase64 node is in the workflow.");
+			console.log(
+				"\n⚠️  No images received. Check that SaveImageBase64 node is in the workflow.",
+			);
 		}
 
 		// Print event summary
@@ -158,4 +173,3 @@ async function main() {
 if (import.meta.main) {
 	main().catch(console.error);
 }
-

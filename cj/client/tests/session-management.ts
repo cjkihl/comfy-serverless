@@ -101,7 +101,9 @@ async function testDisconnectFreesSlot(): Promise<void> {
 
 		const connectResult2 = await client2.connect();
 		if (!connectResult2.success) {
-			throw new Error(`Second connection should have succeeded after disconnect: ${connectResult2.error}`);
+			throw new Error(
+				`Second connection should have succeeded after disconnect: ${connectResult2.error}`,
+			);
 		}
 
 		console.log("✅ Second connection succeeded after first disconnect");
@@ -140,7 +142,9 @@ async function testConcurrentUser(index: number): Promise<void> {
 	try {
 		const connectResult = await client.connect();
 		if (!connectResult.success) {
-			throw new Error(`User ${index} connection failed: ${connectResult.error}`);
+			throw new Error(
+				`User ${index} connection failed: ${connectResult.error}`,
+			);
 		}
 
 		const prompt = createTestPrompt();
@@ -149,7 +153,9 @@ async function testConcurrentUser(index: number): Promise<void> {
 		});
 
 		if (!submitResult.success) {
-			throw new Error(`User ${index} prompt submission failed: ${submitResult.error}`);
+			throw new Error(
+				`User ${index} prompt submission failed: ${submitResult.error}`,
+			);
 		}
 
 		console.log(`✅ User ${index} connected and submitted prompt`);
@@ -174,4 +180,3 @@ async function main() {
 if (import.meta.main) {
 	main().catch(console.error);
 }
-

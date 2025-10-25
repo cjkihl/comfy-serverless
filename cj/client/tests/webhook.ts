@@ -42,8 +42,8 @@ async function testWebhookRegistration(): Promise<void> {
 		const webhookUrl = "https://httpbin.org/post"; // Public test endpoint
 		const submitResult = await client.submitPrompt(prompt, {
 			promptId: `webhook-test-${Date.now()}`,
-			webhookUrl,
 			webhookSecret: "test-secret-123",
+			webhookUrl,
 		});
 
 		if (!submitResult.success) {
@@ -146,4 +146,3 @@ async function main() {
 if (import.meta.main) {
 	main().catch(console.error);
 }
-

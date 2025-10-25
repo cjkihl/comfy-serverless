@@ -2,6 +2,7 @@ import type { WebSocket, WebSocketHandler } from "bun";
 import { serve } from "bun";
 import { env } from "./env";
 import { circuitBreaker, promptQueue } from "./errorHandling";
+import { createErrorJSON } from "./errorHelpers";
 import { verifyAuthHeader } from "./jwt";
 import {
 	acquireSessionCreationLock,
@@ -16,36 +17,41 @@ import {
 } from "./sessionManager";
 import type {
 	ComfyWsMessage,
+	ExtendedServerWebSocket,
 	MetricsResponse,
 	ProxyWsInbound,
 	ProxyWsOutbound,
 	SubmitPromptBody,
 } from "./types";
+import { ErrorCode } from "./types";
+import { validatePrompt } from "./validation";
 
 // Health check function for ComfyUI server
 async function checkComfyHealth(): Promise<boolean> {
 	try {
 		const healthUrl = `${env.COMFY_URL}/system_stats`;
-		
+
 		// Use Promise.race to implement timeout
 		const timeoutPromise = new Promise<never>((_, reject) => {
 			setTimeout(() => reject(new Error("Health check timeout")), 5000);
 		});
-		
+
 		const fetchPromise = fetch(healthUrl, {
 			method: "GET",
 		});
-		
+
 		const response = await Promise.race([fetchPromise, timeoutPromise]);
-		
+
 		const isHealthy = response.ok;
 		if (!isHealthy) {
-			console.error(`❌ ComfyUI health check failed (${response.status} ${response.statusText})`);
+			console.error(
+				`❌ ComfyUI health check failed (${response.status} ${response.statusText})`,
+			);
 		}
-		
+
 		return isHealthy;
 	} catch (error) {
-		console.error(`❌ ComfyUI health check error:`, error);
+		console.error("❌ ComfyUI health check error:", error);
 		return false;
 	}
 }
@@ -58,7 +64,7 @@ function startPeriodicHealthCheck(): void {
 	if (healthCheckInterval) {
 		clearInterval(healthCheckInterval);
 	}
-	
+
 	// Start periodic health checks every 10 seconds
 	healthCheckInterval = setInterval(async () => {
 		const isHealthy = await checkComfyHealth();
@@ -66,7 +72,7 @@ function startPeriodicHealthCheck(): void {
 			console.warn("⚠️ ComfyUI server appears to be unhealthy");
 		}
 	}, 10000);
-	
+
 	console.log("🔄 Started periodic ComfyUI health checks (every 10s)");
 }
 
@@ -95,7 +101,7 @@ async function waitForComfySessionReady(
 		const session = getSession(userId);
 		const comfyOpen = Boolean(
 			session?.comfyWs &&
-				(session.comfyWs as unknown as { readyState?: number }).readyState ===
+				(session.comfyWs as WebSocket & { readyState?: number }).readyState ===
 					1,
 		);
 		if (session?.sid && comfyOpen) return;
@@ -113,12 +119,9 @@ async function handleSubmitForUser(userId: string, body: SubmitPromptBody) {
 	}
 
 	// Validate prompt before forwarding
-	if (
-		!body.prompt ||
-		typeof body.prompt !== "object" ||
-		Object.keys(body.prompt).length === 0
-	) {
-		throw new Error("Invalid prompt: must be a non-empty object");
+	const validation = validatePrompt(body.prompt);
+	if (!validation.valid) {
+		throw new Error(`Invalid prompt: ${validation.error}`);
 	}
 
 	// Check circuit breaker
@@ -221,7 +224,8 @@ async function processQueuedPrompts(userId: string) {
 type WsData = { userId: string; authorization?: string };
 const wsHandler: WebSocketHandler<WsData> = {
 	close(ws) {
-		const userId = (ws as unknown as { userId?: string }).userId;
+		const extendedWs = ws as ExtendedServerWebSocket<WsData>;
+		const userId = extendedWs.userId;
 		if (!userId) return;
 
 		console.log(`🔌 Closing session for user: ${userId}`);
@@ -243,9 +247,11 @@ const wsHandler: WebSocketHandler<WsData> = {
 	},
 	async message(ws, message) {
 		const userId = ws.data?.userId;
-		console.log(`📨 [WS←Client] Message handler called for user ${userId}, type: ${typeof message}`);
+		console.log(
+			`📨 [WS←Client] Message handler called for user ${userId}, type: ${typeof message}`,
+		);
 		if (!userId) {
-			console.log(`⚠️ [WS←Client] No userId found in WebSocket, data:`, ws.data);
+			console.log("⚠️ [WS←Client] No userId found in WebSocket, data:", ws.data);
 			return;
 		}
 
@@ -254,36 +260,50 @@ const wsHandler: WebSocketHandler<WsData> = {
 
 		try {
 			if (typeof message === "string") {
-				console.log(`📨 [WS←Client] Received message from user ${userId}: ${message.substring(0, 200)}`);
+				console.log(
+					`📨 [WS←Client] Received message from user ${userId}: ${message.substring(0, 200)}`,
+				);
 				let parsed: ProxyWsInbound;
 				try {
 					parsed = JSON.parse(message);
 				} catch {
-					console.log(`⚠️ [WS←Client] Failed to parse message from user ${userId}`);
+					console.log(
+						`⚠️ [WS←Client] Failed to parse message from user ${userId}`,
+					);
 					return;
 				}
-				console.log(`🔎 [WS←Client] Parsed message type=${parsed.type} from user ${userId}`);
+				console.log(
+					`🔎 [WS←Client] Parsed message type=${parsed.type} from user ${userId}`,
+				);
 				if (parsed.type === "submit_prompt") {
-					console.log(`📤 [WS←Client] Processing submit_prompt from user ${userId}`);
-					
+					console.log(
+						`📤 [WS←Client] Processing submit_prompt from user ${userId}`,
+					);
+
 					// Wait for session to be ready
 					const session = getSession(userId);
 					if (!session?.comfyWs) {
-						console.log(`⏳ Waiting for ComfyUI session to be ready for user ${userId}`);
+						console.log(
+							`⏳ Waiting for ComfyUI session to be ready for user ${userId}`,
+						);
 						try {
 							await waitForComfySessionReady(userId, 10000);
 						} catch (error) {
-							console.error(`❌ Timeout waiting for ComfyUI session for user ${userId}:`, error);
-							(ws as unknown as WebSocket).send(
-								JSON.stringify({
-									data: { message: "ComfyUI session not ready" },
-									type: "error",
-								} satisfies ProxyWsOutbound),
+							console.error(
+								`❌ Timeout waiting for ComfyUI session for user ${userId}:`,
+								error,
+							);
+							ws.send(
+								createErrorJSON(
+									"ComfyUI session not ready",
+									ErrorCode.SESSION_NOT_READY,
+									{ retryable: true, userId },
+								),
 							);
 							return;
 						}
 					}
-					
+
 					// Capture webhook configuration and ensure prompt_id is set
 					const incoming = parsed.data as SubmitPromptBody;
 					const finalPromptId =
@@ -295,8 +315,13 @@ const wsHandler: WebSocketHandler<WsData> = {
 						try {
 							const webhookUrl = new URL(incoming.webhook_url);
 							// Only allow http and https protocols
-							if (webhookUrl.protocol !== "http:" && webhookUrl.protocol !== "https:") {
-								throw new Error(`Invalid webhook URL protocol: ${webhookUrl.protocol}. Only http and https are allowed.`);
+							if (
+								webhookUrl.protocol !== "http:" &&
+								webhookUrl.protocol !== "https:"
+							) {
+								throw new Error(
+									`Invalid webhook URL protocol: ${webhookUrl.protocol}. Only http and https are allowed.`,
+								);
 							}
 							// Reject localhost/private IPs in production (optional, uncomment if needed)
 							// if (webhookUrl.hostname === "localhost" || webhookUrl.hostname.startsWith("127.") || webhookUrl.hostname.startsWith("192.168.")) {
@@ -304,11 +329,13 @@ const wsHandler: WebSocketHandler<WsData> = {
 							// }
 						} catch (error) {
 							if (error instanceof TypeError) {
-								throw new Error(`Invalid webhook URL format: ${incoming.webhook_url}`);
+								throw new Error(
+									`Invalid webhook URL format: ${incoming.webhook_url}`,
+								);
 							}
 							throw error;
 						}
-						
+
 						const existingWebhooks = session?.webhooks || {};
 						existingWebhooks[finalPromptId] = {
 							secret: incoming.webhook_secret,
@@ -323,8 +350,8 @@ const wsHandler: WebSocketHandler<WsData> = {
 					try {
 						console.log(`🔄 Calling handleSubmitForUser for user ${userId}`);
 						const res = await handleSubmitForUser(userId, incoming);
-						console.log(`✅ handleSubmitForUser completed, result:`, res);
-						(ws as unknown as WebSocket).send(
+						console.log("✅ handleSubmitForUser completed, result:", res);
+						ws.send(
 							JSON.stringify({
 								data: res,
 								type: "prompt_accepted",
@@ -332,23 +359,46 @@ const wsHandler: WebSocketHandler<WsData> = {
 						);
 						console.log(`➡️ [WS→Client] Sent prompt_accepted to user ${userId}`);
 					} catch (error) {
-						console.error(`❌ Error handling submit_prompt for user ${userId}:`, error);
-						(ws as unknown as WebSocket).send(
-							JSON.stringify({
-								data: { message: (error as Error).message },
-								type: "error",
-							} satisfies ProxyWsOutbound),
+						console.error(
+							`❌ Error handling submit_prompt for user ${userId}:`,
+							error,
+						);
+						const errorMsg = (error as Error).message;
+						let errorCode = ErrorCode.UNKNOWN;
+						let retryable = false;
+
+						if (errorMsg.includes("invalid webhook")) {
+							errorCode = ErrorCode.INVALID_WEBHOOK_URL;
+						} else if (errorMsg.includes("unavailable")) {
+							errorCode = ErrorCode.COMFY_UNAVAILABLE;
+							retryable = true;
+						} else if (errorMsg.includes("queue")) {
+							errorCode = ErrorCode.QUEUE_FULL;
+							retryable = true;
+						}
+
+						ws.send(
+							createErrorJSON(errorMsg, errorCode, {
+								retryable,
+								userId,
+							}),
 						);
 					}
 				}
 			}
 		} catch (e) {
-			(ws as unknown as WebSocket).send(
-				JSON.stringify({
-					data: { message: (e as Error).message },
-					type: "error",
-				} satisfies ProxyWsOutbound),
-			);
+			const errorMsg = (e as Error).message;
+			let errorCode = ErrorCode.UNKNOWN;
+			let retryable = false;
+
+			if (errorMsg.includes("connections per user")) {
+				errorCode = ErrorCode.MAX_CONNECTIONS_EXCEEDED;
+			} else if (errorMsg.includes("connection")) {
+				errorCode = ErrorCode.CONNECTION_ERROR;
+				retryable = true;
+			}
+
+			ws.send(createErrorJSON(errorMsg, errorCode, { retryable }));
 		}
 	},
 	async open(ws) {
@@ -369,7 +419,9 @@ const wsHandler: WebSocketHandler<WsData> = {
 
 			// Acquire atomic lock to prevent race conditions
 			if (!acquireSessionCreationLock(userId)) {
-				throw new Error("Another connection is being established for this user");
+				throw new Error(
+					"Another connection is being established for this user",
+				);
 			}
 
 			// Create a dedicated ComfyUI WebSocket connection for this client
@@ -465,28 +517,38 @@ const wsHandler: WebSocketHandler<WsData> = {
 									node_id: (data as { node_id?: string }).node_id,
 									prompt_id: (data as { prompt_id?: string }).prompt_id,
 								};
-								(ws as unknown as WebSocket).send(
-									JSON.stringify({
-										data: { message: norm.exception_message, ...norm },
-										type: "error",
-									} satisfies ProxyWsOutbound),
+								ws.send(
+									createErrorJSON(
+										norm.exception_message || "Execution error",
+										ErrorCode.EXECUTION_ERROR,
+										{
+											context: {
+												exception_type: norm.exception_type,
+												node_id: norm.node_id,
+											},
+											promptId: norm.prompt_id,
+											userId,
+										},
+									),
 								);
 							} catch {}
 						}
 						// Relay to client
-						(ws as unknown as WebSocket).send(evt.data as string);
+						ws.send(evt.data as string);
 					} catch {
-						(ws as unknown as WebSocket).send(evt.data as string);
+						ws.send(evt.data as string);
 					}
 				} else if (evt.data instanceof ArrayBuffer) {
-					console.log(`📦 [WS←Comfy] Binary data (${evt.data.byteLength} bytes) for user ${userId}`);
-					(ws as unknown as WebSocket).send(evt.data);
+					console.log(
+						`📦 [WS←Comfy] Binary data (${evt.data.byteLength} bytes) for user ${userId}`,
+					);
+					ws.send(evt.data);
 				}
 			};
 
 			comfyConnection.onclose = () => {
 				console.log(`🔌 ComfyUI connection closed for user: ${userId}`);
-				(ws as unknown as WebSocket).close();
+				ws.close();
 			};
 
 			comfyConnection.onerror = (error) => {
@@ -496,7 +558,7 @@ const wsHandler: WebSocketHandler<WsData> = {
 					`❌ ComfyUI server may be unreachable at ${env.COMFY_URL}`,
 				);
 				console.error("❌ Please ensure ComfyUI is running and accessible");
-				(ws as unknown as WebSocket).close();
+				ws.close();
 			};
 
 			// Wait for the ComfyUI connection to be established
@@ -530,20 +592,21 @@ const wsHandler: WebSocketHandler<WsData> = {
 			});
 
 			// Create session with the dedicated connection
+			const extendedWs = ws as ExtendedServerWebSocket<WsData>;
 			upsertSession(userId, {
 				clientId,
-				clientWs: ws as unknown as WebSocket,
+				clientWs: extendedWs,
 				comfyWs: comfyConnection,
 				connectionState: "connected",
 			});
-			(ws as unknown as { userId: string }).userId = userId;
+			extendedWs.userId = userId;
 			console.log(
 				`📝 Session created for user: ${userId} with dedicated ComfyUI connection`,
 			);
 			console.log(
 				`✅ User ${userId} connected with dedicated ComfyUI connection`,
 			);
-			
+
 			// Release the session creation lock now that session is established
 			releaseSessionCreationLock(userId);
 		} catch (e) {
@@ -551,24 +614,30 @@ const wsHandler: WebSocketHandler<WsData> = {
 			console.error("❌ Error stack:", (e as Error).stack);
 			console.error(`❌ ComfyUI URL: ${env.COMFY_URL}`);
 			console.error("❌ Please ensure ComfyUI is running and accessible");
-			
+
 			// Release the session creation lock on error
 			const userId = ws.data?.userId;
 			if (userId) {
 				releaseSessionCreationLock(userId);
 			}
-			
-			(ws as unknown as WebSocket).send(
-				JSON.stringify({
-					data: {
+
+			const errorMsg = (e as Error).message;
+			let errorCode = ErrorCode.CONNECTION_ERROR;
+			if (errorMsg.includes("connections")) {
+				errorCode = ErrorCode.MAX_CONNECTIONS_EXCEEDED;
+			}
+
+			ws.send(
+				createErrorJSON(errorMsg, errorCode, {
+					context: {
 						comfyUrl: env.COMFY_URL,
 						hint: "Ensure ComfyUI is running and accessible",
-						message: (e as Error).message,
 					},
-					type: "error",
-				} satisfies ProxyWsOutbound),
+					retryable: true,
+					userId,
+				}),
 			);
-			(ws as unknown as WebSocket).close();
+			ws.close();
 		}
 	},
 };
@@ -653,19 +722,19 @@ serve({
 			if (!auth && tokenParam) {
 				auth = `Bearer ${tokenParam}`;
 			}
-			
+
 			try {
 				const { userId } = await verifyAuthHeader(auth);
-				
+
 				// Perform the upgrade manually - this is required
 				const upgraded = serverInstance.upgrade(req, {
 					data: { authorization: auth, userId },
 				});
-				
+
 				if (!upgraded) {
 					return badRequest("Failed to upgrade WebSocket connection", 400);
 				}
-				
+
 				// Return 101 Switching Protocols
 				return new Response(null, { status: 101 });
 			} catch (e) {
@@ -689,12 +758,16 @@ console.log(
 	console.log("🏥 Performing startup health check...");
 	const isHealthy = await checkComfyHealth();
 	if (!isHealthy) {
-		console.error("❌ Startup health check failed - ComfyUI server may not be running");
-		console.error(`❌ Please ensure ComfyUI is accessible at: ${env.COMFY_URL}`);
+		console.error(
+			"❌ Startup health check failed - ComfyUI server may not be running",
+		);
+		console.error(
+			`❌ Please ensure ComfyUI is accessible at: ${env.COMFY_URL}`,
+		);
 	} else {
 		console.log("✅ Startup health check passed - ComfyUI server is running");
 	}
-	
+
 	// Start periodic health checks
 	startPeriodicHealthCheck();
 })();

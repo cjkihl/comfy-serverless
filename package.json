@@ -2,8 +2,7 @@
   "name": "cj",
   "private": true,
   "workspaces": [
-    "client",
-    "proxy"
+    "cj/*"
   ],
   "scripts": {
     "build": "bun -F '*' build",

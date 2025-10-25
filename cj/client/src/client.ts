@@ -204,10 +204,7 @@ export class ComfyClient {
 			timeout: this.config.timeout.connect,
 		};
 
-		const result = await this.config.adapter.connect(
-			url,
-			connectionOptions,
-		);
+		const result = await this.config.adapter.connect(url, connectionOptions);
 
 		if (result.success) {
 			this.setConnectionState("connected");
@@ -241,7 +238,7 @@ export class ComfyClient {
 		this.config.adapter.close();
 		this.setConnectionState("disconnected");
 		this.pendingOperations = [];
-		
+
 		// Clear all message handlers to prevent memory leaks
 		this.messageHandlers.clear();
 	}
@@ -281,7 +278,7 @@ export class ComfyClient {
 				if (!resolved) {
 					resolved = true;
 					clearTimeout(timeoutId);
-					
+
 					// Immediately remove handler to prevent memory leak
 					const handlers = this.messageHandlers.get(eventType);
 					if (handlers) {
@@ -290,7 +287,7 @@ export class ComfyClient {
 							handlers.splice(index, 1);
 						}
 					}
-					
+
 					resolve(ok(data));
 				}
 			};

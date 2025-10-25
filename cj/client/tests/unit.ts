@@ -25,7 +25,9 @@ function createTestJwt(): string {
 	// Header: {"alg":"HS256","typ":"JWT"}
 	// Payload: {"sub":"test-user-123","iat":1737792000}
 	const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-	const payload = btoa(JSON.stringify({ sub: "test-user-123", iat: 1737792000 }));
+	const payload = btoa(
+		JSON.stringify({ iat: 1737792000, sub: "test-user-123" }),
+	);
 	const signature = "test-signature";
 	return `${header}.${payload}.${signature}`;
 }
@@ -42,8 +44,12 @@ class MockWebSocket {
 	public onerror: ((error: Error) => void) | null = null;
 
 	private openHandlers: Array<() => void> = [];
-	private messageHandlers: Array<(event: { data: string | ArrayBuffer }) => void> = [];
-	private closeHandlers: Array<(event: { code: number; reason: string }) => void> = [];
+	private messageHandlers: Array<
+		(event: { data: string | ArrayBuffer }) => void
+	> = [];
+	private closeHandlers: Array<
+		(event: { code: number; reason: string }) => void
+	> = [];
 	private errorHandlers: Array<(error: Error) => void> = [];
 	private _connected = false;
 
@@ -123,8 +129,9 @@ class MockWebSocket {
 const OriginalWebSocket = global.WebSocket;
 
 // Mock Bun WebSocket globally
-(global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket =
-	MockWebSocket;
+// Type assertion needed because global is not properly typed for WebSocket assignment
+// We use 'as any' here because we're intentionally replacing the global WebSocket for testing
+(global as any).WebSocket = MockWebSocket;
 
 // Mock adapter for testing
 class MockWebSocketAdapter {
@@ -145,7 +152,7 @@ class MockWebSocketAdapter {
 		if (!this.connected) {
 			return err(new Error("Not connected"));
 		}
-		
+
 		// Simulate response for prompt submissions
 		if (typeof data === "string") {
 			try {
@@ -154,8 +161,8 @@ class MockWebSocketAdapter {
 					// Simulate prompt_accepted event
 					setTimeout(() => {
 						const response = JSON.stringify({
-							type: "prompt_accepted",
 							data: { prompt_id: message.data.prompt_id },
+							type: "prompt_accepted",
 						});
 						this.messageHandler!(response);
 					}, 10);
@@ -164,7 +171,7 @@ class MockWebSocketAdapter {
 				// Not JSON, ignore
 			}
 		}
-		
+
 		return ok(undefined);
 	}
 
@@ -384,21 +391,20 @@ async function testComfyClientValidation(): Promise<void> {
 
 async function testBunWebSocketAdapter(): Promise<void> {
 	// Restore real WebSocket for this test
-	(global as unknown as { WebSocket: typeof OriginalWebSocket }).WebSocket =
-		OriginalWebSocket;
+	(global as any).WebSocket = OriginalWebSocket;
 
 	const adapter = new BunWebSocketAdapter();
 
 	// Use the proxy URL from environment instead of hardcoded port
 	let proxyUrl = env.PROXY_URL || "ws://localhost:8190/ws";
-	
+
 	// Create a test JWT token (simple JWT for testing with NO_VERIFY=true)
 	const testJwt = createTestJwt();
-	
+
 	// Add JWT as query parameter since Bun WebSocket doesn't support custom headers
 	const separator = proxyUrl.includes("?") ? "&" : "?";
 	proxyUrl = `${proxyUrl}${separator}token=${encodeURIComponent(testJwt)}`;
-	
+
 	const connectResult = await adapter.connect(proxyUrl, {
 		timeout: 5000,
 	});
@@ -419,28 +425,26 @@ async function testBunWebSocketAdapter(): Promise<void> {
 	adapter.close();
 
 	// Restore mock WebSocket for other tests
-	(global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket =
-		MockWebSocket;
+	(global as any).WebSocket = MockWebSocket;
 }
 
 async function testBrowserWebSocketAdapter(): Promise<void> {
 	// Restore real WebSocket for this test
-	(global as unknown as { WebSocket: typeof OriginalWebSocket }).WebSocket =
-		OriginalWebSocket;
+	(global as any).WebSocket = OriginalWebSocket;
 
 	const adapter = new BrowserWebSocketAdapter();
 
 	// Use the proxy URL from environment instead of hardcoded port
 	const proxyUrl = env.PROXY_URL || "ws://localhost:8190/ws";
-	
+
 	// Create a test JWT token (simple JWT for testing with NO_VERIFY=true)
 	const testJwt = createTestJwt();
-	
+
 	const connectResult = await adapter.connect(proxyUrl, {
-		timeout: 5000,
 		headers: {
 			Authorization: `Bearer ${testJwt}`,
 		},
+		timeout: 5000,
 	});
 
 	if (!connectResult.success) {
@@ -461,8 +465,7 @@ async function testBrowserWebSocketAdapter(): Promise<void> {
 	adapter.close();
 
 	// Restore mock WebSocket for other tests
-	(global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket =
-		MockWebSocket;
+	(global as any).WebSocket = MockWebSocket;
 }
 
 async function testErrorHandling(): Promise<void> {
@@ -484,8 +487,7 @@ async function testErrorHandling(): Promise<void> {
 
 	// Test connection to invalid URL with real adapter
 	// Restore real WebSocket for this test
-	(global as unknown as { WebSocket: typeof OriginalWebSocket }).WebSocket =
-		OriginalWebSocket;
+	(global as any).WebSocket = OriginalWebSocket;
 
 	const realAdapter = new BunWebSocketAdapter();
 	const clientWithRealAdapter = new ComfyClient({
@@ -500,8 +502,7 @@ async function testErrorHandling(): Promise<void> {
 	}
 
 	// Restore mock WebSocket for other tests
-	(global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket =
-		MockWebSocket;
+	(global as any).WebSocket = MockWebSocket;
 }
 
 async function testConfigurationValidation(): Promise<void> {

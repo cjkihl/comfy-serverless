@@ -41,9 +41,11 @@ export async function verifyAuthHeader(authHeader?: string) {
 		if (parts.length !== 3) {
 			throw new Error("Invalid JWT format");
 		}
-		const payload = JSON.parse(Buffer.from(parts[1]!, "base64").toString()) as jwt.JwtPayload;
+		const payload = JSON.parse(
+			Buffer.from(parts[1]!, "base64").toString(),
+		) as jwt.JwtPayload;
 		if (!payload?.sub) throw new Error("Missing sub in JWT");
-		return { raw: payload as Record<string, unknown>, userId: payload.sub };
+		return { raw: payload, userId: payload.sub };
 	}
 
 	if (!authHeader) throw new Error("Missing Authorization header");
