@@ -1,0 +1,22 @@
+{
+	"name": "@cj/comfy-proxy",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "with-env 'bun run src/server.ts'",
+		"dev": "with-env 'bun --hot run src/server.ts'",
+		"type-check": "tsc --noEmit",
+		"kill": "bunx kill-port 8190"
+	},
+	"dependencies": {
+		"@cjkihl/tsconfig": "^1.0.9",
+		"@t3-oss/env-core": "^0.13.8",
+		"jsonwebtoken": "^9.0.2",
+		"jwks-rsa": "^3.1.0",
+		"zod": "^4.1.12"
+	},
+	"devDependencies": {
+		"@types/jsonwebtoken": "^9.0.7"
+	}
+}

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyClient Browser Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .status.connecting { background-color: #fff3cd; color: #856404; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        textarea { height: 100px; resize: vertical; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 ComfyClient Browser Example</h1>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+        
+        <div>
+            <label for="wsUrl">WebSocket URL:</label>
+            <input type="text" id="wsUrl" value="${env.PROXY_URL}" placeholder="${env.PROXY_URL}">
+            
+            <label for="jwtToken">JWT Token (optional):</label>
+            <input type="text" id="jwtToken" placeholder="your-jwt-token">
+            
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        
+        <div>
+            <h3>Test Prompt</h3>
+            <textarea id="promptText" placeholder="Enter your ComfyUI prompt JSON here...">{
+  "1": {
+    "inputs": {
+      "text": "a beautiful landscape",
+      "clip": ["4", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  }
+}</textarea>
+            
+            <button id="submitBtn" onclick="submitPrompt()" disabled>Submit Prompt</button>
+            <button id="pingBtn" onclick="ping()" disabled>Ping</button>
+        </div>
+        
+        <div>
+            <h3>Event Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the ComfyClient (assuming it's available via CDN or bundled)
+        // In a real application, you would import from your package or CDN
+        import { ComfyClient, BrowserWebSocketAdapter } from './dist/index.js';
+        
+        let client = null;
+        let isConnected = false;
+        
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const pingBtn = document.getElementById('pingBtn');
+        const wsUrlEl = document.getElementById('wsUrl');
+        const jwtTokenEl = document.getElementById('jwtToken');
+        const promptTextEl = document.getElementById('promptText');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #666">[${timestamp}]</span> <span style="color: ${type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007bff'}">${message}</span>`;
+            logEl.appendChild(logEntry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function updateStatus(state) {
+            statusEl.textContent = state;
+            statusEl.className = `status ${state.toLowerCase()}`;
+            isConnected = state === 'Connected';
+            
+            connectBtn.disabled = isConnected;
+            disconnectBtn.disabled = !isConnected;
+            submitBtn.disabled = !isConnected;
+            pingBtn.disabled = !isConnected;
+        }
+        
+        window.connect = async function() {
+            try {
+                log('🔗 Connecting to ComfyUI...');
+                updateStatus('Connecting');
+                
+                const adapter = new BrowserWebSocketAdapter();
+                client = new ComfyClient({
+                    url: wsUrlEl.value,
+                    adapter,
+                    auth: jwtTokenEl.value ? { jwt: jwtTokenEl.value } : undefined,
+                    logging: { level: 'debug' },
+                    reconnect: { enabled: true, maxRetries: 3 },
+                    onMessage: (msg) => {
+                        log(`📨 Message: ${JSON.stringify(msg)}`);
+                    },
+                    onError: (err) => {
+                        log(`❌ Error: ${err.message}`, 'error');
+                    },
+                    onConnectionChange: (state) => {
+                        log(`🔌 Connection state: ${state}`);
+                        if (state === 'connected') {
+                            updateStatus('Connected');
+                        } else if (state === 'disconnected') {
+                            updateStatus('Disconnected');
+                        }
+                    }
+                });
+                
+                const result = await client.connect();
+                if (!result.success) {
+                    throw new Error(result.error.message);
+                }
+                
+                log('✅ Connected successfully!', 'success');
+                
+            } catch (error) {
+                log(`❌ Connection failed: ${error.message}`, 'error');
+                updateStatus('Disconnected');
+            }
+        };
+        
+        window.disconnect = function() {
+            if (client) {
+                log('🧹 Disconnecting...');
+                client.disconnect();
+                client = null;
+                updateStatus('Disconnected');
+                log('👋 Disconnected', 'success');
+            }
+        };
+        
+        window.submitPrompt = async function() {
+            if (!client || !isConnected) {
+                log('❌ Not connected', 'error');
+                return;
+            }
+            
+            try {
+                const promptText = promptTextEl.value.trim();
+                if (!promptText) {
+                    log('❌ Please enter a prompt', 'error');
+                    return;
+                }
+                
+                const prompt = JSON.parse(promptText);
+                log('📤 Submitting prompt...');
+                
+                const result = await client.submitPrompt(prompt, {
+                    promptId: `browser-${Date.now()}`
+                });
+                
+                if (!result.success) {
+                    throw new Error(result.error.message);
+                }
+                
+                log('✅ Prompt submitted successfully!', 'success');
+                log(`📋 Prompt ID: ${result.data.prompt_id}`);
+                
+                // Wait for acceptance
+                log('⏳ Waiting for prompt acceptance...');
+                const acceptResult = await client.waitForEvent('prompt_accepted');
+                
+                if (!acceptResult.success) {
+                    throw new Error(acceptResult.error.message);
+                }
+                
+                log('✅ Prompt accepted!', 'success');
+                
+            } catch (error) {
+                log(`❌ Prompt submission failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.ping = async function() {
+            if (!client || !isConnected) {
+                log('❌ Not connected', 'error');
+                return;
+            }
+            
+            try {
+                log('🏓 Sending ping...');
+                const result = await client.ping();
+                
+                if (!result.success) {
+                    throw new Error(result.error.message);
+                }
+                
+                log('✅ Ping sent successfully!', 'success');
+                
+            } catch (error) {
+                log(`❌ Ping failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearLog = function() {
+            logEl.innerHTML = '';
+        };
+        
+        // Initialize
+        log('🚀 ComfyClient Browser Example loaded');
+        log('💡 Enter your ComfyUI WebSocket URL and click Connect to get started');
+    </script>
+</body>
+</html>

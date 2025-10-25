@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   stale:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/stale@v9

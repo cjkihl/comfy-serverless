@@ -1,0 +1,56 @@
+{
+	"name": "@cj/comfy-client",
+	"version": "0.1.0",
+	"description": "A reusable WebSocket client for ComfyUI with dual adapter support (Bun and Browser)",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./env": {
+			"types": "./dist/env.d.ts",
+			"import": "./dist/env.js"
+		}
+	},
+	"files": [
+		"dist/**/*",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"type-check": "tsc --noEmit",
+		"test": "with-env bun run test:unit && with-env bun run test:e2e",
+		"test:all": "with-env bun run test:unit && with-env bun run test:integration && bun run test:e2e",
+		"test:unit": "with-env bun run tests/unit.ts",
+		"test:e2e": "with-env bun run tests/e2e.ts",
+		"test:integration": "with-env bun run tests/integration.ts",
+		"test:prompt": "with-env bun run tests/run-test-prompt.ts"
+	},
+	"keywords": [
+		"comfyui",
+		"websocket",
+		"client",
+		"bun",
+		"browser"
+	],
+	"author": "CJ",
+	"license": "MIT",
+	"dependencies": {
+		"@t3-oss/env-core": "^0.13.8",
+		"zod": "^4.1.12"
+	},
+	"peerDependencies": {
+		"bun-types": "*"
+	},
+	"peerDependenciesMeta": {
+		"bun-types": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"bun-types": "*"
+	}
+}
