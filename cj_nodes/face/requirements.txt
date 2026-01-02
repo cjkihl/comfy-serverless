@@ -1,0 +1,5 @@
+insightface
+onnxruntime  # Use CPU version by default; GPU containers will upgrade via Dockerfile
+cuid
+opencv-python-headless
+

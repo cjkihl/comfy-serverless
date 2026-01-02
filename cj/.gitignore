@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+
+# All dot files and directories
+.*
+
+# Whitelist specific dot files/directories we want to track
+!.gitignore
+
+dist
+output
+
+# Generated files
+**/*-generated-*
+
+web/test-results

@@ -6,6 +6,7 @@ on:
 
 jobs:
   send-webhook:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     runs-on: ubuntu-latest
     steps:
       - name: Send release webhook

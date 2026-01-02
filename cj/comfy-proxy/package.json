@@ -1,0 +1,29 @@
+{
+  "name": "@cj/comfy-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {},
+  "bin": {
+    "index": "./dist/output/index.bin.js"
+  },
+  "scripts": {
+    "dev": "with-env 'bun --hot run index.bin.ts'",
+    "kill": "bunx kill-port 8190",
+    "start": "with-env 'bun run index.bin.ts'",
+    "test": "bun test tests",
+    "type-check": "tsc --noEmit",
+    "create-exports": "create-exports"
+  },
+  "dependencies": {
+    "@cj/comfy-auth": "workspace:*",
+    "@cjkihl/tsconfig": "^1.0.10",
+    "@t3-oss/env-core": "^0.13.10",
+    "commander": "^14.0.2",
+    "consola": "^3.4.2",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@cjkihl/create-exports": "^1.0.9"
+  }
+}

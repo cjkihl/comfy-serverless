@@ -6,6 +6,7 @@ on:
 
 jobs:
   check-line-endings:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     runs-on: ubuntu-latest
 
     steps:

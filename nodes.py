@@ -2203,7 +2203,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-async def init_external_custom_nodes():
+async def init_external_custom_nodes(excluded_nodes=[]):
     """
     Initializes the external custom nodes.
 
@@ -2217,6 +2217,10 @@ async def init_external_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
+        # Skip loading nodes from excluded plugins
+        if os.path.basename(custom_node_path) in excluded_nodes:
+            continue
+
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")

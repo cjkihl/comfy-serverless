@@ -26,6 +26,7 @@ on:
 
 jobs:
   package_comfyui:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     permissions:
         contents: "write"
         packages: "write"

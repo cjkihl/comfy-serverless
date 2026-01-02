@@ -7,7 +7,7 @@ on:
 
 jobs:
   pr-test-stable:
-    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    if: ${{ github.repository == 'comfyanonymous/ComfyUI' && github.event.label.name == 'Run-CI-Test' }}
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +37,7 @@ jobs:
           comfyui_flags: ${{ matrix.flags }}
           use_prior_commit: 'true'
   comment:
-    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    if: ${{ github.repository == 'comfyanonymous/ComfyUI' && github.event.label.name == 'Run-CI-Test' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

@@ -1,0 +1,24 @@
+{
+  "name": "@cj/comfy-auth",
+  "version": "0.1.0",
+  "description": "Shared JWT authentication utilities for ComfyUI packages",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./index.pub.ts",
+      "types": "./index.pub.ts"
+    }
+  },
+  "scripts": {
+    "create-exports": "create-exports -s",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@cjkihl/create-exports": "^1.0.9",
+    "@cjkihl/tsconfig": "^1.0.10",
+    "@types/jsonwebtoken": "^9.0.10"
+  }
+}

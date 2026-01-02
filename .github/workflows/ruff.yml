@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   ruff:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     name: Run Ruff
     runs-on: ubuntu-latest
 
@@ -23,6 +24,7 @@ jobs:
       run: ruff check .
 
   pylint:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     name: Run Pylint
     runs-on: ubuntu-latest
 

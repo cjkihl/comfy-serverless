@@ -36,6 +36,7 @@ on:
 
 jobs:
   build_dependencies:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     runs-on: windows-latest
     steps:
         - uses: actions/checkout@v4

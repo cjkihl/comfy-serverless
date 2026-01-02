@@ -1,0 +1,7 @@
+.git
+*.pyc
+__pycache__
+.DS_Store
+*.md
+*.log
+cj/client/

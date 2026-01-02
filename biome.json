@@ -1,0 +1,69 @@
+{
+	"$schema": "https://biomejs.dev/schemas/latest/schema.json",
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on",
+				"useSortedAttributes": "on",
+				"useSortedKeys": "on",
+				"useSortedProperties": "on"
+			}
+		}
+	},
+	"files": {
+		"includes": [
+			"cj/**/*.ts",
+			"cj/**/*.tsx",
+			"cj/**/*.json",
+			"!**/node_modules",
+			"!node_modules",
+			"!**/dist",
+			"!**/package.json",
+			"!**/routeTree.gen.ts"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2
+	},
+	"json": {
+		"parser": {
+			"allowComments": true
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"a11y": {
+				"noSvgWithoutTitle": "off",
+				"useButtonType": "off"
+			},
+			"correctness": {
+				"noNestedComponentDefinitions": "off",
+				"useExhaustiveDependencies": "error",
+				"useUniqueElementIds": "off"
+			},
+			"nursery": {
+				"useSortedClasses": "off"
+			},
+			"recommended": true,
+			"style": {
+				"noInferrableTypes": "error",
+				"noNonNullAssertion": "off",
+				"noParameterAssign": "off",
+				"noUnusedTemplateLiteral": "error",
+				"noUselessElse": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useNumberNamespace": "error",
+				"useSelfClosingElements": "error",
+				"useSingleVarDeclarator": "error"
+			},
+			"suspicious": {
+				"noArrayIndexKey": "off"
+			}
+		}
+	}
+}

@@ -1,0 +1,35 @@
+{
+  "name": "cj",
+  "private": true,
+  "workspaces": [
+    "cj/*"
+  ],
+  "scripts": {
+    "build": "bun -F '*' build",
+    "check-error-codes": "bun run scripts/check-error-codes.ts",
+    "clean": "git clean -fxd -e .env.local",
+    "dev": "bun -F '*' dev",
+    "format": "biome format .",
+    "knip": "knip",
+    "knip:fix": "knip --fix",
+    "lint": "biome check . && manypkg check && bun run knip",
+    "lint-fix": "biome check --write . && manypkg fix && bun run knip:fix",
+    "sort-package-json": "sort-package-json package.json **/*/package.json",
+    "test": "bun -F '*' test",
+    "type-check": "bun -F '*' type-check",
+    "up": "bunx npm-check-updates -ws --root --format group -u",
+    "up2": "bun update -i -r",
+    "ci": "bun run build && bun run lint && bun run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "@cjkihl/with-env": "^1.0.11",
+    "@manypkg/cli": "0.25.1",
+    "@types/bun": "^1.3.5",
+    "@types/node": "25.0.3",
+    "knip": "^5.78.0",
+    "sort-package-json": "3.6.0",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "bun@1.3.5"
+}

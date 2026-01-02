@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Terminal theme styling for components */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+}

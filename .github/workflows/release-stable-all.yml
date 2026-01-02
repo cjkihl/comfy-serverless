@@ -10,6 +10,7 @@ on:
 
 jobs:
   release_nvidia_default:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     permissions:
       contents: "write"
       packages: "write"
@@ -27,6 +28,7 @@ jobs:
     secrets: inherit
 
   release_nvidia_cu128:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     permissions:
       contents: "write"
       packages: "write"
@@ -44,6 +46,7 @@ jobs:
     secrets: inherit
 
   release_amd_rocm:
+    if: github.repository == 'comfyanonymous/ComfyUI'
     permissions:
       contents: "write"
       packages: "write"

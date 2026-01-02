@@ -10,8 +10,8 @@ on:
 jobs:
   update-version:
     runs-on: ubuntu-latest
-    # Don't run on fork PRs
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Don't run on fork PRs or forks of upstream
+    if: github.repository == 'comfyanonymous/ComfyUI' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       pull-requests: write
       contents: write

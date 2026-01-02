@@ -1,0 +1,32 @@
+[project]
+name = "comfy-serverless"
+description = "ComfyUI serverless environment managed with Pixi"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
+
+[dependencies]
+python = "3.13.*"
+pip = "*"
+setuptools = "*"
+wheel = "*"
+
+[pypi-dependencies]
+GitPython = "*"
+
+[tasks]
+# Start ComfyUI
+run = "python main.py"
+
+# Run the local test script
+test = "bash test.sh"
+
+# Keep parity with upstream requirements.txt inside the Pixi env
+install-req = "python -m pip install -r requirements.txt"
+
+# Install PyTorch for CPU (development)
+install-torch-cpu = "python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
+
+# Install PyTorch for GPU (CUDA 12.4) and xformers
+install-torch-gpu = "python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 && python -m pip install xformers"
+
+
