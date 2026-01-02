@@ -100,7 +100,10 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
 COPY pixi.toml pixi.lock ./
-RUN pixi install
+RUN pixi install && \
+    rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \
+    find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+    find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
 
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/supervisord.conf /etc/supervisord.conf
@@ -117,8 +120,16 @@ CMD [ "/entrypoint.sh" ]
 
 
 FROM base-cuda AS gpu
+# Clean up before installing large packages to maximize available space
+RUN rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \
+    find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+    find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
 RUN pixi run install-torch-gpu && \
-    pixi run python -m pip install --upgrade onnxruntime-gpu
+    rm -rf /tmp/* /var/tmp/* /root/.cache/pip
+RUN pixi run python -m pip install --upgrade onnxruntime-gpu && \
+    rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \
+    find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+    find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
 CMD [ "/entrypoint.sh" ]
 
 
@@ -128,10 +139,12 @@ COPY . /comfy
 WORKDIR /comfy
 
 # Install all requirements and extensions during build
-RUN pixi run bash -lc './scripts/install_requirements.sh'
+RUN pixi run bash -lc './scripts/install_requirements.sh' && \
+    rm -rf /tmp/* /var/tmp/* /root/.cache/pip
 
 # Install proxy dependencies (Bun is already installed in base image)
-RUN cd /comfy/cj/proxy && bun install
+RUN cd /comfy/cj/proxy && bun install && \
+    rm -rf /tmp/* /var/tmp/*
 
 # Use a lightweight entrypoint that skips git operations
 COPY docker/entrypoint-installed.sh /entrypoint-installed.sh
