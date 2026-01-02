@@ -11,6 +11,11 @@ script_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 cj_nodes_dir = os.path.join(script_dir, "cj_nodes")
 custom_nodes_dir = os.path.join(script_dir, "custom_nodes")
 
+# Packages to exclude from installation
+EXCLUDED_PACKAGES = [
+    "face",  # Requires insightface/onnxruntime which are large and slow to install
+]
+
 # Ensure custom_nodes exists
 os.makedirs(custom_nodes_dir, exist_ok=True)
 
@@ -28,11 +33,13 @@ if not os.path.exists(cj_nodes_dir):
     logging.info("cj_nodes directory not found, skipping local extensions installation")
     exit(0)
 
-# Get all packages in cj_nodes
+# Get all packages in cj_nodes (excluding those in EXCLUDED_PACKAGES)
 packages = [
     d
     for d in os.listdir(cj_nodes_dir)
-    if os.path.isdir(os.path.join(cj_nodes_dir, d)) and not d.startswith("__")
+    if os.path.isdir(os.path.join(cj_nodes_dir, d))
+    and not d.startswith("__")
+    and d not in EXCLUDED_PACKAGES
 ]
 
 if not packages:
@@ -40,6 +47,8 @@ if not packages:
     exit(0)
 
 logging.info(f"Found {len(packages)} local extension packages: {', '.join(packages)}")
+if EXCLUDED_PACKAGES:
+    logging.info(f"Excluding packages: {', '.join(EXCLUDED_PACKAGES)}")
 
 for package in packages:
     source = os.path.join(cj_nodes_dir, package)

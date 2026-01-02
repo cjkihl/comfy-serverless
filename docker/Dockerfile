@@ -56,7 +56,7 @@ RUN chmod +x /entrypoint.sh && mkdir -p /var/log/supervisor
 EXPOSE 8188 8190 9001
 
 
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-cuda
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS base-cuda
 
 ENV DEBIAN_FRONTEND=noninteractive \
     SHELL=/bin/bash \
@@ -125,8 +125,6 @@ RUN rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \
     find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
 RUN pixi run install-torch-gpu && \
-    rm -rf /tmp/* /var/tmp/* /root/.cache/pip
-RUN pixi run python -m pip install --upgrade onnxruntime-gpu && \
     rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \
     find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
