@@ -131,22 +131,3 @@ RUN pixi run python -m pip install --upgrade onnxruntime-gpu && \
     find /workspace/.pixi -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /workspace/.pixi -type f -name "*.pyc" -delete 2>/dev/null || true
 CMD [ "/entrypoint.sh" ]
-
-
-FROM gpu AS gpu-installed
-# Copy entire codebase into the image
-COPY . /comfy
-WORKDIR /comfy
-
-# Install all requirements and extensions during build
-RUN pixi run bash -lc './scripts/install_requirements.sh' && \
-    rm -rf /tmp/* /var/tmp/* /root/.cache/pip
-
-# Install proxy dependencies (Bun is already installed in base image)
-RUN cd /comfy/cj/proxy && bun install && \
-    rm -rf /tmp/* /var/tmp/*
-
-# Use a lightweight entrypoint that skips git operations
-COPY docker/entrypoint-installed.sh /entrypoint-installed.sh
-RUN chmod +x /entrypoint-installed.sh
-CMD [ "/entrypoint-installed.sh" ]
